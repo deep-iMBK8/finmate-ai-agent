@@ -1,0 +1,33 @@
+[flake8]
+
+# black과 맞춤
+max-line-length = 88
+
+# 무시할 규칙
+extend-ignore =
+    E203,
+    W503
+
+# 제외 폴더
+exclude =
+    .git,
+    __pycache__,
+    .venv,
+    venv,
+    env,
+    notebooks,
+    data,
+    outputs,
+    checkpoints,
+    build,
+    dist
+
+# import 관련 표시
+import-order-style = google
+
+# 통계 출력
+statistics = True
+
+# 파일별 예외
+per-file-ignores =
+    __init__.py:F401

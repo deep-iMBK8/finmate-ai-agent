@@ -1,0 +1,17 @@
+name: finmate
+
+channels:
+  - conda-forge
+  - defaults
+
+dependencies:
+  - python=3.10
+  - pip
+
+  - ipykernel
+  - jupyter
+  - numpy
+  - pandas
+  - scikit-learn
+  - scipy
+  - openpyxl
