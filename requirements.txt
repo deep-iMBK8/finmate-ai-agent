@@ -2,7 +2,6 @@ annotated-doc==0.0.4
 annotated-types==0.7.0
 anyio==4.13.0
 appdirs==1.4.4
-appnope==0.1.4
 arelle-release==2.41.0
 asttokens==3.0.1
 attrs==26.1.0
@@ -60,7 +59,6 @@ packaging==26.0
 pandas==2.3.3
 parso==0.8.7
 pathspec==1.1.1
-pexpect==4.9.0
 pickleshare==0.7.5
 pillow==12.2.0
 pip==26.0.1
@@ -68,7 +66,6 @@ platformdirs==4.9.6
 pluggy==1.6.0
 prompt_toolkit==3.0.52
 psutil==7.0.0
-ptyprocess==0.7.0
 pure_eval==0.2.3
 pycodestyle==2.14.0
 pydantic==2.13.4
