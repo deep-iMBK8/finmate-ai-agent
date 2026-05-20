@@ -1,0 +1,38 @@
+
+.ipynb
+
+# Python
+__pycache__/
+*.pyc
+
+# Conda
+.env
+.venv
+venv/
+env/
+
+# Jupyter
+notebooks/*.ipynb
+.ipynb_checkpoints/
+
+# Data
+data/raw/
+data/processed/
+data/chunks/
+data/embeddings/
+
+# Model
+checkpoints/
+models/
+*.pth
+*.pt
+
+# OS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
