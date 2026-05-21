@@ -1,9 +1,10 @@
-import os
 import json
+import os
+from pathlib import Path
+
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-from pathlib import Path
-from src.config.paths import JSON_DIR, CHUNK_DIR
+from src.config.paths import CHUNK_DIR, JSON_DIR
 
 CHUNK_DIR.mkdir(parents=True, exist_ok=True)    # chunks 폴더 새로 생성
 

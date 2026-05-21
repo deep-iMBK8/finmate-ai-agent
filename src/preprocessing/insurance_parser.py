@@ -1,10 +1,9 @@
-from datetime import datetime
-
 import json
 import os
 import re
 import time
 import uuid
+from datetime import datetime
 
 import fitz
 import pdfplumber
