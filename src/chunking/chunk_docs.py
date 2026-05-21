@@ -25,25 +25,32 @@ for filename in os.listdir(JSON_DIR):
     # 청크 데이터 저장용
     chunk_data = []
 
-    # TEXT 청킹
+    # TEXT 청킹 - 페이지 정보 살려서
+    text_chunk_idx = 0
 
-    full_text = " ".join(page["text"] for page in doc["pages"])
-    text_chunks = splitter.split_text(full_text)
+    for page in doc["pages"]:
+        page_number = page["page_number"]
+        page_text = page["text"]
+        text_chunks = splitter.split_text(page_text)
 
-    for idx, chunk in enumerate(text_chunks):
-        chunk_data.append({
-            "chunk_id": f"{doc['document_uuid']}_text_{idx}",
-            "document_uuid": doc["document_uuid"],
-            "sector": doc["sector"],                    # 검색을 위해 메타데이터도 저장 필요
-            "document_date": doc["document_date"],
-            "document_type": doc["document_type"],
-            "company": doc["company"],
+        for chunk in text_chunks:
+            chunk_data.append({
+                "chunk_id": f"{doc['document_uuid']}_text_{text_chunk_idx}",
+                "document_uuid": doc["document_uuid"],
 
-            "chunk_type": "text",
-            
-            "chunk_index": idx,
-            "chunk_text": chunk
-        })
+                # 검색을 위한 메타데이터
+                "sector": doc["sector"],
+                "document_date": doc["document_date"],
+                "document_type": doc["document_type"],
+                "company": doc["company"],
+
+                "chunk_type": "text",
+                "page_number": page_number,
+                "chunk_index": text_chunk_idx,
+                "chunk_text": chunk
+            })
+
+            text_chunk_idx += 1
 
     # TABLE 청킹
     table_chunk_idx = 0
@@ -67,17 +74,17 @@ for filename in os.listdir(JSON_DIR):
             for chunk in split_table_chunks:
                 chunk_data.append({
                     "chunk_id": f"{doc['document_uuid']}_table_{table_chunk_idx}",
+
+                    # 검색을 위한 메타데이터
                     "document_uuid": doc["document_uuid"],
-                    "sector": doc["sector"],                    # 검색을 위해 메타데이터도 저장 필요
+                    "sector": doc["sector"],
                     "document_date": doc["document_date"],
                     "document_type": doc["document_type"],
                     "company": doc["company"],
 
                     "chunk_type": "table",
-
                     "page_number": page_number,
                     "table_id": table_id,
-
                     "chunk_index": table_chunk_idx,
                     "chunk_text": chunk
                 })
