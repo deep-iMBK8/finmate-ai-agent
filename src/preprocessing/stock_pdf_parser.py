@@ -9,7 +9,7 @@ import pdfplumber
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 PDF_DIR = BASE_DIR / "data" / "raw" / "pdf" / "stock"
-OUTPUT_DIR = BASE_DIR / "data" / "processed" / "json" / "stock"
+OUTPUT_DIR = BASE_DIR / "data" / "processed" / "json" 
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 
