@@ -9,15 +9,16 @@ import dart_fss as dart
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 
+# api key 로드
 load_dotenv()
 
 dart_api_key = os.getenv("DART_API_KEY")
 
 dart.set_api_key(api_key=dart_api_key)
 
-DOWNLOAD_DIR = "./data/processed/json/dart"
+# 추출된 메타데이터 저장할 경로
+DOWNLOAD_DIR = "/data/processed/json/dart"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
-
 
 # 찾을 기업
 targets = set(
@@ -35,7 +36,6 @@ target_types = [
     "설명서",
     "정관",
 ]
-
 
 # 기업 검색
 

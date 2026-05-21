@@ -13,6 +13,7 @@ notebooks/*.ipynb
 .ipynb_checkpoints/
 
 # Data
+data/
 data/raw/
 data/processed/
 data/chunks/
