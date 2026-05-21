@@ -3,6 +3,7 @@ import json
 import time
 import argparse
 import re
+import uuid
 from pathlib import Path
 from datetime import datetime
 
@@ -41,9 +42,6 @@ OCR_PROMPT = """
 IMAGE_EXTENSIONS = {
     ".jpg", ".jpeg", ".png", ".webp", ".bmp"
 }
-
-DEFAULT_CHUNK_SIZE = 800
-DEFAULT_CHUNK_OVERLAP = 120
 
 
 def get_gemini_client():
@@ -102,7 +100,7 @@ def run_gemini_ocr(client, image_path: Path, model_name: str):
 
 
 # ==================================================
-# 결과 저장
+# 텍스트 추출 보조 함수
 # ==================================================
 def extract_customer_name(ocr_text: str):
     patterns = [
@@ -145,6 +143,11 @@ def infer_company(ocr_text: str, fallback: str = ""):
         "기업은행",
         "카카오뱅크",
         "토스뱅크",
+        "미래에셋자산운용",
+        "삼성자산운용",
+        "KB자산운용",
+        "신한자산운용",
+        "한화자산운용",
     ]
 
     for company in companies:
@@ -158,9 +161,29 @@ def infer_company(ocr_text: str, fallback: str = ""):
 
 
 def infer_title(ocr_text: str, fallback: str):
+    title_keywords = [
+        "신청서",
+        "투자설명서",
+        "증권신고서",
+        "약관",
+        "동의서",
+        "설명서",
+        "정정신고",
+        "보고",
+    ]
+
     for line in ocr_text.splitlines():
         line = line.strip()
-        if "신청서" in line:
+        if any(keyword in line for keyword in title_keywords):
+            return line
+
+    return fallback
+
+
+def infer_subtitle(ocr_text: str, fallback: str = ""):
+    for line in ocr_text.splitlines():
+        line = line.strip()
+        if line:
             return line
 
     return fallback
@@ -181,42 +204,112 @@ def extract_key_terms(ocr_text: str):
         "자동이체",
         "개인정보",
         "신용정보",
+        "투자위험",
+        "총보수",
+        "집합투자",
+        "증권신고서",
+        "투자설명서",
+        "정정신고",
     ]
 
     return [term for term in candidate_terms if term in ocr_text]
 
 
-def split_text_into_chunks(text: str, chunk_size: int, chunk_overlap: int):
-    clean_text = text.strip()
-    if not clean_text:
-        return []
+# ==================================================
+# 표 처리 함수
+# ==================================================
+def extract_markdown_tables(ocr_text: str, document_uuid: str, page_number: int = 1):
+    """
+    Gemini OCR 결과 안에 Markdown 표가 있을 경우 tables 구조로 변환한다.
 
-    if chunk_overlap >= chunk_size:
-        raise ValueError("chunk_overlap은 chunk_size보다 작아야 합니다.")
+    예:
+    | 항목 | 내용 |
+    | --- | --- |
+    | 성명 | 김찬규 |
 
-    chunks = []
-    start = 0
+    결과:
+    {
+      "table_id": "...",
+      "table_index": 1,
+      "rows": [
+        ["항목", "내용"],
+        ["성명", "김찬규"]
+      ]
+    }
+    """
+    tables = []
+    current_table = []
 
-    while start < len(clean_text):
-        end = min(start + chunk_size, len(clean_text))
-        chunk_text = clean_text[start:end].strip()
+    for line in ocr_text.splitlines():
+        stripped = line.strip()
 
-        if chunk_text:
-            chunks.append(
+        if "|" in stripped:
+            current_table.append(stripped)
+        else:
+            if current_table:
+                tables.append(current_table)
+                current_table = []
+
+    if current_table:
+        tables.append(current_table)
+
+    parsed_tables = []
+
+    for table_index, table_lines in enumerate(tables, start=1):
+        rows = []
+
+        for line in table_lines:
+            # Markdown 표 구분선 제거: | --- | --- |
+            if re.fullmatch(r"[\|\-\s:]+", line):
+                continue
+
+            cells = [
+                cell.strip()
+                for cell in line.strip("|").split("|")
+            ]
+
+            if any(cells):
+                rows.append(cells)
+
+        if rows:
+            parsed_tables.append(
                 {
-                    "chunk_id": len(chunks) + 1,
-                    "text": chunk_text,
+                    "table_id": f"{document_uuid}_p{page_number}_tbl{table_index}",
+                    "table_index": table_index,
+                    "rows": rows,
                 }
             )
 
-        if end >= len(clean_text):
-            break
-
-        start = end - chunk_overlap
-
-    return chunks
+    return parsed_tables
 
 
+def remove_markdown_tables_from_text(ocr_text: str):
+    """
+    pages[].text에는 일반 문장 중심 텍스트를 넣기 위해
+    Markdown 표 라인은 제외한다.
+    """
+    lines = []
+    in_table = False
+
+    for line in ocr_text.splitlines():
+        stripped = line.strip()
+
+        if "|" in stripped:
+            in_table = True
+            continue
+
+        if in_table and "|" not in stripped:
+            in_table = False
+
+        if not in_table and stripped:
+            lines.append(stripped)
+
+    return " ".join(lines).strip()
+
+
+# ==================================================
+# JSON 생성
+# ==================================================
 def build_rag_document(
     image_path: Path,
     txt_path: Path,
@@ -229,40 +322,55 @@ def build_rag_document(
     document_type: str,
     company: str,
     document_title: str,
-    chunk_size: int,
-    chunk_overlap: int,
     error_message: str = None,
 ):
-    document_id = image_path.stem
-    inferred_title = infer_title(ocr_text, fallback=document_id)
+    document_uuid = str(uuid.uuid4())
+
+    inferred_title = infer_title(ocr_text, fallback=image_path.stem)
     final_title = document_title or inferred_title
     final_company = infer_company(ocr_text, fallback=company)
     final_document_type = document_type or final_title
+    file_type = image_path.suffix.lower().replace(".", "")
+
+    page_number = 1
+    page_id = f"{document_uuid}_p{page_number}"
+
+    page_text = remove_markdown_tables_from_text(ocr_text)
+    page_tables = extract_markdown_tables(
+        ocr_text=ocr_text,
+        document_uuid=document_uuid,
+        page_number=page_number,
+    )
 
     return {
-        "document_id": document_id,
+        "document_uuid": document_uuid,
         "user_id": user_id,
-        "document_sector": document_sector,
+        "sector": document_sector,
         "document_date": document_date,
         "document_type": final_document_type,
         "company": final_company,
         "document_title": final_title,
-        "full_text": ocr_text,
-        "key_terms": extract_key_terms(ocr_text),
-        "chunks": split_text_into_chunks(
-            text=ocr_text,
-            chunk_size=chunk_size,
-            chunk_overlap=chunk_overlap,
-        ),
+        "created_at": datetime.now().isoformat(),
+        "file_type": file_type,
+        "processing_engine": model_name,
+        "pages_count": 1,
+        "pages": [
+            {
+                "page_id": page_id,
+                "page_number": page_number,
+                "subtitle": infer_subtitle(ocr_text, fallback=final_title),
+                "text": page_text,
+                "tables": page_tables,
+            }
+        ],
         "metadata": {
             "customer_name": extract_customer_name(ocr_text),
             "checked_items": extract_checked_items(ocr_text),
             "source_image": str(image_path),
             "source_txt": str(txt_path) if status == "success" else None,
-            "ocr_model": model_name,
             "ocr_status": status,
             "error_message": error_message,
-            "created_at": datetime.now().isoformat(),
+            "key_terms": extract_key_terms(ocr_text),
         },
     }
 
@@ -278,8 +386,6 @@ def save_result(
     document_type: str,
     company: str,
     document_title: str,
-    chunk_size: int,
-    chunk_overlap: int,
     status: str = "success",
     error_message: str = None
 ):
@@ -306,8 +412,6 @@ def save_result(
         document_type=document_type,
         company=company,
         document_title=document_title,
-        chunk_size=chunk_size,
-        chunk_overlap=chunk_overlap,
         error_message=error_message,
     )
 
@@ -330,7 +434,6 @@ def main():
         default="data/raw",
         help="OCR할 이미지 폴더"
     )
-
 
     parser.add_argument(
         "--output-dir",
@@ -406,20 +509,6 @@ def main():
         help="문서 제목. 지정하지 않으면 OCR 텍스트에서 추정"
     )
 
-    parser.add_argument(
-        "--chunk-size",
-        type=int,
-        default=DEFAULT_CHUNK_SIZE,
-        help="RAG chunk 최대 글자 수"
-    )
-
-    parser.add_argument(
-        "--chunk-overlap",
-        type=int,
-        default=DEFAULT_CHUNK_OVERLAP,
-        help="RAG chunk 겹침 글자 수"
-    )
-
     args = parser.parse_args()
 
     image_dir = args.image_dir
@@ -473,8 +562,6 @@ def main():
                     document_type=args.document_type,
                     company=args.company,
                     document_title=args.document_title,
-                    chunk_size=args.chunk_size,
-                    chunk_overlap=args.chunk_overlap,
                     status="success"
                 )
                 success_count += 1
@@ -498,8 +585,6 @@ def main():
                     document_type=args.document_type,
                     company=args.company,
                     document_title=args.document_title,
-                    chunk_size=args.chunk_size,
-                    chunk_overlap=args.chunk_overlap,
                     status="success"
                 )
                 success_count += 1
@@ -527,8 +612,6 @@ def main():
                 document_type=args.document_type,
                 company=args.company,
                 document_title=args.document_title,
-                chunk_size=args.chunk_size,
-                chunk_overlap=args.chunk_overlap,
                 status="success"
             )
 
@@ -552,8 +635,6 @@ def main():
                 document_type=args.document_type,
                 company=args.company,
                 document_title=args.document_title,
-                chunk_size=args.chunk_size,
-                chunk_overlap=args.chunk_overlap,
                 status="fail",
                 error_message=error_message
             )
