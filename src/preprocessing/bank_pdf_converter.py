@@ -1,66 +1,230 @@
-from google import genai
+import json
 import os
+import re
 import shutil
+import time
 import uuid
+from datetime import datetime  # noqa: I100
 
-# 1. API 키 설정 
-GOOGLE_API_KEY = "GOOGLE_API_KEY"
+import fitz  # PyMuPDF 라이브러리 (PDF 이미지 추출용)
+from google import genai
+from google.genai import types
+
+# ==========================================
+# 1. API 키 및 설정
+# ==========================================
+GOOGLE_API_KEY = "AIzaSyDp9-8sYzjUEXVT1lAmZSFUFYJqdhZD2QA"
 client = genai.Client(api_key=GOOGLE_API_KEY)
 
-def print_pdf_text(pdf_filepath):
-    # 파일 존재 여부 확인
-    if not os.path.exists(pdf_filepath):
-        print(f"파일을 찾을 수 없습니다: {pdf_filepath}")
+# ==========================================
+# 2. 로컬 폴더 경로 설정
+# ==========================================
+PROJECT_ROOT = os.getcwd()
+
+INPUT_DIR = os.path.join(PROJECT_ROOT, "data", "raw", "pdf", "bank")
+DOWNLOAD_DIR = os.path.join(PROJECT_ROOT, "data", "processed", "json")
+IMAGE_DIR = os.path.join(
+    PROJECT_ROOT, "data", "processed", "images"
+)  # 이미지 폴더 추가
+
+os.makedirs(INPUT_DIR, exist_ok=True)
+os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+os.makedirs(IMAGE_DIR, exist_ok=True)
+
+
+def extract_and_save_images(pdf_path, doc_uuid, out_dir):
+    """PDF에서 물리적인 이미지를 추출하여 로컬에 저장하고 리스트를 반환합니다."""
+    doc = fitz.open(pdf_path)
+    img_map = {}
+
+    for p_idx in range(len(doc)):
+        page = doc[p_idx]
+        img_list = page.get_images(full=True)
+        page_imgs = []
+
+        for i_idx, img in enumerate(img_list, start=1):
+            xref = img[0]
+            base_img = doc.extract_image(xref)
+            ext = base_img["ext"]
+            img_bytes = base_img["image"]
+
+            f_name = f"{doc_uuid}_p{p_idx + 1}_img{i_idx}.{ext}"
+            f_path = os.path.join(out_dir, f_name)
+
+            # 이미지 파일 로컬 저장
+            with open(f_path, "wb") as f:
+                f.write(img_bytes)
+
+            # JSON에 들어갈 딕셔너리 형태 구성
+            page_imgs.append(
+                {
+                    "image_id": f"{doc_uuid}_p{p_idx + 1}_img{i_idx}",
+                    "src": f"data/processed/images/{f_name}",
+                    "alt": "PDF 추출 이미지",  # PDF는 HTML 태그가 없어 임의 지정
+                }
+            )
+        img_map[p_idx + 1] = page_imgs
+    return img_map
+
+
+def process_all_pdfs():
+    # ==========================================
+    # 3. 파일 찾기
+    # ==========================================
+    pdf_files = [f for f in os.listdir(INPUT_DIR) if f.lower().endswith(".pdf")]
+
+    if not pdf_files:
+        print(f"'{INPUT_DIR}' 폴더에 PDF 파일이 없습니다.")
         return
 
-    print(f"'{pdf_filepath}' 처리 중...\n")
+    print(f"총 {len(pdf_files)}개의 PDF 파일을 찾았습니다.")
+    print("JSON 변환 및 이미지 추출을 시작합니다!\n")
 
-    # 한글 파일명 에러 방지를 위한 임시 영어 파일 생성
-    temp_filename = f"temp_upload_{uuid.uuid4().hex}.pdf"
-    shutil.copy(pdf_filepath, temp_filename)
+    # ==========================================
+    # 4. AI 분석 및 변환
+    # ==========================================
+    for filename in pdf_files:
+        pdf_path = os.path.join(INPUT_DIR, filename)
 
-    try:
-        # 1. 구글 서버에 파일 업로드 (임시 영어 파일 사용)
-        print("PDF 파일을 서버로 업로드 중입니다...")
-        sample_file = client.files.upload(file=temp_filename)
+        clean_filename = filename.replace(".pdf", "").replace(".PDF", "")
+        parts = clean_filename.split("_")
 
-        # 2. 프롬프트 작성
-        prompt = """
-        첨부된 PDF 문서에 있는 모든 텍스트를 추출해 줘.
-        단, 절대 요약하거나 내용을 빼먹지 말고 원문 그대로 추출해.
-        또한 마침표, 쉼표 등 모든 특수기호를 완전히 제거하고 오직 한글, 영문, 숫자, 줄바꿈, 띄어쓰기만 남겨서 아주 깔끔한 텍스트로만 반환해 줘.
+        company = parts[0] if len(parts) > 0 else "Unknown"
+        document_title = parts[1] if len(parts) > 1 else clean_filename
+
+        document_uuid = str(uuid.uuid4())
+        current_time = datetime.now().isoformat()
+
+        print(f"[처리 중] '{filename}' 분석 및 추출 중...")
+
+        # 💡 AI는 텍스트와 표 추출에만 집중하도록 프롬프트 간소화
+        prompt = f"""
+        당신은 금융 문서를 분석하는 AI입니다.
+        아래 스키마에 완벽하게 일치하도록 데이터를 추출하세요.
+
+        [데이터 할당 규칙]
+        1. "document_uuid": "{document_uuid}"
+        2. "sector": "bank"
+        3. "document_date": 문서 날짜를 "YYYY-MM-DD" 형식으로 기입.
+        4. "document_type": 문서 종류 (예: 약관, 설명서)
+        5. "company": "{company}"
+        6. "document_title": "{document_title}"
+        7. "created_at": "{current_time}"
+        8. "file_type": "pdf"
+        9. "processing_engine": "gemini-3.1-flash-lite"
+        10. "pages": 페이지별 배열
+            - "page_id": "{document_uuid}_p" 뒤에 번호
+            - "page_number": 현재 페이지 번호(정수)
+            - "subtitle": 상단 소제목 (없으면 "")
+            - "text": 표와 이미지를 제외한 모든 텍스트 원문
+            - "tables": 표 데이터 배열
+                - "table_id": "page_id_tbl" 뒤에 표 순번
+                - "table_index": 페이지 내 표 순번(정수)
+                - "rows": 표 내용을 2차원 배열로 분리
+
+        [반드시 준수해야 할 JSON 스키마 구조]
+        {{
+          "document_uuid": "{document_uuid}",
+          "sector": "bank",
+          "document_date": "",
+          "document_type": "",
+          "company": "회사명",
+          "document_title": "문서 제목",
+          "created_at": "{current_time}",
+          "file_type": "pdf",
+          "processing_engine": "gemini-3.1-pro",
+          "pages_count": 1,
+          "pages": [
+            {{
+              "page_id": "{document_uuid}_p1",
+              "page_number": 1,
+              "subtitle": "소제목",
+              "text": "전체 텍스트...",
+              "tables": []
+            }}
+          ]
+        }}
         """
 
-        # 3. 텍스트 생성 요청
-        print("텍스트 추출 중... (잠시만 기다려주세요)\n")
-        response = client.models.generate_content(
-            model='gemini-3.1-flash-lite',
-            contents=[sample_file, prompt]
-        )
-        cleaned_text = response.text
+        max_retries = 3
+        document_data = None
+        temp_filename = f"temp_upload_{uuid.uuid4().hex}.pdf"
+        shutil.copy(pdf_path, temp_filename)
 
-        # 4. 추출된 텍스트를 터미널에 바로 출력
-        print("=" * 50)
-        print("[추출된 텍스트 결과]")
-        print("=" * 50)
-        print(cleaned_text)
-        print("=" * 50)
+        for attempt in range(max_retries):
+            try:
+                pdf_file = client.files.upload(file=temp_filename)
+                while pdf_file.state.name == "PROCESSING":
+                    time.sleep(3)
+                    pdf_file = client.files.get(name=pdf_file.name)
 
-        # 5. 구글 서버에 올린 PDF 삭제
-        client.files.delete(name=sample_file.name)
-        print("\n텍스트 추출 및 출력 완료!")
+                response = client.models.generate_content(
+                    model="gemini-3.1-flash-lite",
+                    contents=[pdf_file, prompt],
+                    config=types.GenerateContentConfig(
+                        response_mime_type="application/json",
+                    ),
+                )
 
-    except Exception as e:
-        print(f"\n처리 중 에러 발생: {e}")
-        
-    finally:
-        # 6. 작업 완료 후 로컬에 만든 임시 파일 삭제
+                document_data = json.loads(response.text)
+
+                if document_data.get("document_date"):
+                    document_data["document_date"] = (
+                        document_data["document_date"]
+                        .replace(".", "-")
+                        .replace("/", "-")
+                    )
+
+                client.files.delete(name=pdf_file.name)
+                break
+
+            except json.JSONDecodeError:
+                print(f"  [{filename}] 오류: 유효한 JSON을 반환하지 않았습니다.")
+                break
+            except Exception as e:
+                print(f"  [{filename}] 에러 발생 (시도 {attempt+1}): {e}")
+                try:
+                    if "pdf_file" in locals():
+                        client.files.delete(name=pdf_file.name)
+                except Exception:
+                    pass
+                if attempt < max_retries - 1:
+                    time.sleep(5)
+
         if os.path.exists(temp_filename):
             os.remove(temp_filename)
 
-# 실행 부분
+        if not document_data:
+            continue
+
+        # ==========================================
+        # 5. 파이썬으로 물리적 이미지 추출 및 JSON 병합
+        # ==========================================
+        extracted_images = extract_and_save_images(pdf_path, document_uuid, IMAGE_DIR)
+
+        if "pages" in document_data:
+            document_data["pages_count"] = len(document_data["pages"])
+            for page_data in document_data["pages"]:
+                p_num = page_data.get("page_number", 0)
+                # 요청하신 형태의 image_list를 "images" 키에 쏙 넣어줍니다.
+                page_data["images"] = extracted_images.get(p_num, [])
+
+        # ==========================================
+        # 6. JSON 파일 최종 저장
+        # ==========================================
+        final_company = document_data.get("company", company)
+        safe_company = re.sub(r'[\\/*?:"<>|]', "", final_company)
+
+        json_filename = f"{safe_company}_{document_uuid}.json"
+        file_path = os.path.join(DOWNLOAD_DIR, json_filename)
+
+        with open(file_path, "w", encoding="utf-8") as f:
+            json.dump(document_data, f, ensure_ascii=False, indent=2)
+
+        print(f"  완료! -> JSON({json_filename}) 및 이미지 분리 저장 성공\n")
+
+    print("모든 PDF 파일 작업이 완료되었습니다!")
+
+
 if __name__ == "__main__":
-    # 한글 파일명 그대로 사용 가능
-    TARGET_PDF_FILE = "국민은행_KB Star 정기예금_약관 및 상품설명서.pdf" 
-    
-    print_pdf_text(TARGET_PDF_FILE)
+    process_all_pdfs()
