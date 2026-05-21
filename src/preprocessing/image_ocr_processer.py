@@ -1,4 +1,3 @@
-
 import argparse
 import json
 import mimetypes
@@ -10,7 +9,7 @@ from datetime import datetime
 from pathlib import Path
 
 
-BASE_DIR = Path(__file__).resolve().parent
+BASE_DIR = Path(__file__).resolve().parent.parent.parent  # src/preprocessing → src → 프로젝트 루트
 ENV_PATH = BASE_DIR / ".env"
 genai = None
 
@@ -383,14 +382,16 @@ def process_one_image(
         document_type=document_type,
     )
 
-    # 파일명: 회사명_uuid, 폴더 구조는 raw와 동일하게 유지
-    company = json_data.get("company") or folder_name
+    # 파일명: 회사명_uuid (인식 실패 시 uuid만)
+    company = json_data.get("company")
     document_uuid = json_data["document_uuid"]
-    safe_company = make_safe_name(company)
-    base = f"{safe_company}_{document_uuid}"
+    if company:
+        base = f"{make_safe_name(company)}_{document_uuid}"
+    else:
+        base = document_uuid
 
     relative_parent = image_path.relative_to(raw_root).parent
-    text_path = processed_root / "text" / relative_parent / f"{base}.txt"
+    text_path = processed_root / "txt" / relative_parent / f"{base}.txt"
     json_path = processed_root / "json" / relative_parent / f"{base}.json"
 
     text_path.parent.mkdir(parents=True, exist_ok=True)
@@ -411,8 +412,8 @@ def main():
     parser = argparse.ArgumentParser(
         description="이미지 → Gemini OCR → processed_3 (example_final 필드 기준)"
     )
-    parser.add_argument("--raw-dir",       default="/Users/seoeunpyo/Desktop/raw")
-    parser.add_argument("--processed-dir", default="/Users/seoeunpyo/Desktop/processed_3")
+    parser.add_argument("--raw-dir",       default="./data/raw/image", help="raw 이미지 폴더 경로")
+    parser.add_argument("--processed-dir", default="./data/processed/image", help="결과 저장 폴더 경로")
     parser.add_argument("--model",         default="models/gemini-3.1-flash-lite")
     parser.add_argument("--limit",         type=int, default=None)
     parser.add_argument("--skip-existing", action="store_true",
@@ -498,7 +499,7 @@ def main():
         print(f"aggregate json : {agg_json}")
 
         if args.aggregate_only:
-            shutil.rmtree(processed_root / "text", ignore_errors=True)
+            shutil.rmtree(processed_root / "txt", ignore_errors=True)
             shutil.rmtree(processed_root / "json", ignore_errors=True)
 
     if args.zip:
