@@ -4,9 +4,9 @@ from pathlib import Path
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-from src.config.paths import CHUNK_DIR, JSON_DIR
+from src.config.paths import CHUNKS_DIR, JSON_DIR
 
-CHUNK_DIR.mkdir(parents=True, exist_ok=True)    # chunks 폴더 새로 생성
+CHUNKS_DIR.mkdir(parents=True, exist_ok=True)    # chunks 폴더 새로 생성
 
 splitter = RecursiveCharacterTextSplitter(
     chunk_size=800,
@@ -92,7 +92,7 @@ for filename in os.listdir(JSON_DIR):
                 table_chunk_idx += 1
 
     # 청크 저장
-    save_path = os.path.join(CHUNK_DIR, f"chunk_{doc['document_uuid']}.json")
+    save_path = os.path.join(CHUNKS_DIR, f"chunk_{doc['document_uuid']}.json")
 
     with open(save_path, "w", encoding="utf-8") as f:
         json.dump(chunk_data, f, ensure_ascii=False, indent=2)
