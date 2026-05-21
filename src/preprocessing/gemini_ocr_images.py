@@ -331,6 +331,7 @@ def main():
         help="OCR할 이미지 폴더"
     )
 
+
     parser.add_argument(
         "--output-dir",
         default="data/processed/ocr_text",
