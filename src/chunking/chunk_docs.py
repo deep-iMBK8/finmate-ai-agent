@@ -3,10 +3,7 @@ import json
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from pathlib import Path
-
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
-DATA_DIR = BASE_DIR / "data" / "processed" / "json"
-CHUNK_DIR = BASE_DIR / "data" / "chunks"
+from src.config.paths import JSON_DIR, CHUNK_DIR
 
 CHUNK_DIR.mkdir(parents=True, exist_ok=True)    # chunks 폴더 새로 생성
 
@@ -15,12 +12,12 @@ splitter = RecursiveCharacterTextSplitter(
     chunk_overlap=150
 )
 
-for filename in os.listdir(DATA_DIR):
+for filename in os.listdir(JSON_DIR):
     if not filename.endswith(".json"):
         continue
 
     # json 파일 경로
-    path = os.path.join(DATA_DIR, filename)
+    path = os.path.join(JSON_DIR, filename)
     with open(path, "r", encoding="utf-8") as f:
         doc = json.load(f)
 
