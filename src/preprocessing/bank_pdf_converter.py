@@ -7,22 +7,29 @@ import uuid
 from datetime import datetime  # noqa: I100
 
 import fitz  # PyMuPDF 라이브러리 (PDF 이미지 추출용)
-from google import genai
+from dotenv import load_dotenv  # F821 'load_dotenv' 에러 해결
+from google import genai  # F401 에러 해결 (아래 client에서 사용)
 from google.genai import types
 
 # ==========================================
 # 1. API 키 및 설정
 # ==========================================
-GOOGLE_API_KEY = "AIzaSyDp9-8sYzjUEXVT1lAmZSFUFYJqdhZD2QA"
-client = genai.Client(api_key=GOOGLE_API_KEY)
+
+load_dotenv()
+
+google_api_key = os.getenv("GOOGLE_API_KEY")
+
+# F821 'google', 'client' 에러 해결
+# 구버전인 google.set_api_key() 대신 아래와 같이 client 객체를 생성해야 합니다.
+client = genai.Client(api_key=google_api_key)
 
 # ==========================================
 # 2. 로컬 폴더 경로 설정
 # ==========================================
 PROJECT_ROOT = os.getcwd()
 
-INPUT_DIR = os.path.join(PROJECT_ROOT, "data", "raw", "pdf", "bank")
-DOWNLOAD_DIR = os.path.join(PROJECT_ROOT, "data", "processed", "json")
+INPUT_DIR = os.path.join(PROJECT_ROOT, "data", "raw", "pdf", "personal")
+DOWNLOAD_DIR = os.path.join(PROJECT_ROOT, "data", "processed", "json", "jsonpersonal")
 IMAGE_DIR = os.path.join(
     PROJECT_ROOT, "data", "processed", "images"
 )  # 이미지 폴더 추가
@@ -97,7 +104,7 @@ def process_all_pdfs():
 
         print(f"[처리 중] '{filename}' 분석 및 추출 중...")
 
-        # 💡 AI는 텍스트와 표 추출에만 집중하도록 프롬프트 간소화
+        # AI는 텍스트와 표 추출에만 집중하도록 프롬프트 간소화
         prompt = f"""
         당신은 금융 문서를 분석하는 AI입니다.
         아래 스키마에 완벽하게 일치하도록 데이터를 추출하세요.
