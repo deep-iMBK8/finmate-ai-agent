@@ -133,6 +133,5 @@ def main() -> None:
             print(f"[-] 처리 실패: {pdf_file.name} | {exc}")
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  
     main()
-    
