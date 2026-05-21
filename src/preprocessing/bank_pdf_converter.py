@@ -4,35 +4,25 @@ import re
 import shutil
 import time
 import uuid
-from datetime import datetime  # noqa: I100
+from datetime import datetime
 
-import fitz  # PyMuPDF 라이브러리 (PDF 이미지 추출용)
-from dotenv import load_dotenv  # F821 'load_dotenv' 에러 해결
-from google import genai  # F401 에러 해결 (아래 client에서 사용)
+import fitz
+from dotenv import load_dotenv
+from google import genai
 from google.genai import types
-
-# ==========================================
-# 1. API 키 및 설정
-# ==========================================
 
 load_dotenv()
 
 google_api_key = os.getenv("GOOGLE_API_KEY")
 
-# F821 'google', 'client' 에러 해결
-# 구버전인 google.set_api_key() 대신 아래와 같이 client 객체를 생성해야 합니다.
+
 client = genai.Client(api_key=google_api_key)
 
-# ==========================================
-# 2. 로컬 폴더 경로 설정
-# ==========================================
 PROJECT_ROOT = os.getcwd()
 
 INPUT_DIR = os.path.join(PROJECT_ROOT, "data", "raw", "pdf", "personal")
-DOWNLOAD_DIR = os.path.join(PROJECT_ROOT, "data", "processed", "json", "jsonpersonal")
-IMAGE_DIR = os.path.join(
-    PROJECT_ROOT, "data", "processed", "images"
-)  # 이미지 폴더 추가
+DOWNLOAD_DIR = os.path.join(PROJECT_ROOT, "data", "processed", "json")
+IMAGE_DIR = os.path.join(PROJECT_ROOT, "data", "processed", "images")
 
 os.makedirs(INPUT_DIR, exist_ok=True)
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
@@ -58,16 +48,14 @@ def extract_and_save_images(pdf_path, doc_uuid, out_dir):
             f_name = f"{doc_uuid}_p{p_idx + 1}_img{i_idx}.{ext}"
             f_path = os.path.join(out_dir, f_name)
 
-            # 이미지 파일 로컬 저장
             with open(f_path, "wb") as f:
                 f.write(img_bytes)
 
-            # JSON에 들어갈 딕셔너리 형태 구성
             page_imgs.append(
                 {
                     "image_id": f"{doc_uuid}_p{p_idx + 1}_img{i_idx}",
                     "src": f"data/processed/images/{f_name}",
-                    "alt": "PDF 추출 이미지",  # PDF는 HTML 태그가 없어 임의 지정
+                    "alt": "PDF 추출 이미지",
                 }
             )
         img_map[p_idx + 1] = page_imgs
@@ -75,9 +63,7 @@ def extract_and_save_images(pdf_path, doc_uuid, out_dir):
 
 
 def process_all_pdfs():
-    # ==========================================
-    # 3. 파일 찾기
-    # ==========================================
+
     pdf_files = [f for f in os.listdir(INPUT_DIR) if f.lower().endswith(".pdf")]
 
     if not pdf_files:
@@ -87,9 +73,6 @@ def process_all_pdfs():
     print(f"총 {len(pdf_files)}개의 PDF 파일을 찾았습니다.")
     print("JSON 변환 및 이미지 추출을 시작합니다!\n")
 
-    # ==========================================
-    # 4. AI 분석 및 변환
-    # ==========================================
     for filename in pdf_files:
         pdf_path = os.path.join(INPUT_DIR, filename)
 
@@ -104,7 +87,6 @@ def process_all_pdfs():
 
         print(f"[처리 중] '{filename}' 분석 및 추출 중...")
 
-        # AI는 텍스트와 표 추출에만 집중하도록 프롬프트 간소화
         prompt = f"""
         당신은 금융 문서를 분석하는 AI입니다.
         아래 스키마에 완벽하게 일치하도록 데이터를 추출하세요.
@@ -204,21 +186,14 @@ def process_all_pdfs():
         if not document_data:
             continue
 
-        # ==========================================
-        # 5. 파이썬으로 물리적 이미지 추출 및 JSON 병합
-        # ==========================================
         extracted_images = extract_and_save_images(pdf_path, document_uuid, IMAGE_DIR)
 
         if "pages" in document_data:
             document_data["pages_count"] = len(document_data["pages"])
             for page_data in document_data["pages"]:
                 p_num = page_data.get("page_number", 0)
-                # 요청하신 형태의 image_list를 "images" 키에 쏙 넣어줍니다.
                 page_data["images"] = extracted_images.get(p_num, [])
 
-        # ==========================================
-        # 6. JSON 파일 최종 저장
-        # ==========================================
         final_company = document_data.get("company", company)
         safe_company = re.sub(r'[\\/*?:"<>|]', "", final_company)
 
