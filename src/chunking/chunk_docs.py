@@ -8,7 +8,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 DATA_DIR = BASE_DIR / "data" / "processed" / "json"
 CHUNK_DIR = BASE_DIR / "data" / "chunks"
 
-os.makedirs(CHUNK_DIR, exist_ok=True)
+CHUNK_DIR.mkdir(parents=True, exist_ok=True)    # chunks 폴더 새로 생성
 
 splitter = RecursiveCharacterTextSplitter(
     chunk_size=800,
