@@ -9,6 +9,8 @@ import dart_fss as dart
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 
+from src.config.paths import JSON_DIR
+
 # api key 로드
 load_dotenv()
 
@@ -17,8 +19,7 @@ dart_api_key = os.getenv("DART_API_KEY")
 dart.set_api_key(api_key=dart_api_key)
 
 # 추출된 메타데이터 저장할 경로
-DOWNLOAD_DIR = "/data/processed/json/dart"
-os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+JSON_DIR.mkdir(parents=True, exist_ok=True)    # 폴더 새로 생성
 
 # 찾을 기업
 targets = set(
@@ -231,7 +232,7 @@ for report in report_list:
     safe_report_name = re.sub(r'[\\/*?:"<>|]', "", document_title)
 
     # JSON 확장자로 저장
-    file_path = os.path.join(DOWNLOAD_DIR, f"{company}_{document_uuid}.json")
+    file_path = os.path.join(JSON_DIR, f"{company}_{document_uuid}.json")
     with open(file_path, "w", encoding="utf-8") as f:
         json.dump(document_data, f, ensure_ascii=False, indent=2)
 

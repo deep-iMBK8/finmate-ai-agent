@@ -12,6 +12,9 @@ env/
 notebooks/*.ipynb
 .ipynb_checkpoints/
 
+# Chroma
+chroma_db/
+
 # Data
 data/
 data/raw/
