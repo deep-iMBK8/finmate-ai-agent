@@ -6,11 +6,10 @@ from pathlib import Path
 
 import pdfplumber
 
+from src.config.paths import RAW_PDF_DIR, PROCESSED_JSON_DIR
 
-BASE_DIR = Path(__file__).resolve().parents[2]
-PDF_DIR = BASE_DIR / "data" / "raw" / "pdf" / "stock"
-OUTPUT_DIR = BASE_DIR / "data" / "processed" / "json" 
-OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+INPUT_DIR = RAW_PDF_DIR / "stock"
+PROCESSED_JSON_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def clean_text(text: str) -> str:
@@ -110,7 +109,7 @@ def extract_pdf_to_json(pdf_file: Path) -> dict:
     document_data["pages_count"] = len(document_data["pages"])
 
     safe_company = safe_filename(company)
-    output_path = OUTPUT_DIR / f"{safe_company}_{document_uuid}.json"
+    output_path = PROCESSED_JSON_DIR / f"{safe_company}_{document_uuid}.json"
 
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(document_data, f, ensure_ascii=False, indent=2)
@@ -120,10 +119,10 @@ def extract_pdf_to_json(pdf_file: Path) -> dict:
 
 
 def main() -> None:
-    pdf_files = list(PDF_DIR.glob("*.pdf"))
+    pdf_files = list(INPUT_DIR.glob("*.pdf"))
 
     if not pdf_files:
-        raise FileNotFoundError(f"{PDF_DIR} 폴더에 PDF 파일이 없습니다.")
+        raise FileNotFoundError(f"{INPUT_DIR} 폴더에 PDF 파일이 없습니다.")
 
     for pdf_file in pdf_files:
         print(f"처리 중: {pdf_file}")

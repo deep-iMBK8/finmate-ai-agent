@@ -3,7 +3,7 @@ import json
 import os
 import re
 
-from src.config.paths import JSON_DIR, CHUNKS_DIR
+from src.config.paths import PROCESSED_JSON_DIR, CHUNKS_DIR
 
 
 def convert_table_to_markdown(table_data):
@@ -179,4 +179,4 @@ def batch_process_json_files(input_dir, output_dir):
 
 
 if __name__ == "__main__":
-    batch_process_json_files(JSON_DIR, CHUNKS_DIR)
+    batch_process_json_files(PROCESSED_JSON_DIR, CHUNKS_DIR)

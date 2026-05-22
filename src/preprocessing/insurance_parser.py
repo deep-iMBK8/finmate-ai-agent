@@ -8,20 +8,16 @@ from datetime import datetime
 import fitz
 import pdfplumber
 
-# =====================================================
-# PDF 폴더 경로
-# =====================================================
+from src.config.paths import RAW_PDF_DIR, PROCESSED_JSON_DIR
 
-PDF_DIR = "./data/raw/pdf/insurance"
-DOWNLOAD_DIR = "./data/processed/json"
+INPUT_DIR = RAW_PDF_DIR / "insurance"
 
-os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+os.makedirs(PROCESSED_JSON_DIR, exist_ok=True)
 
 # =====================================================
 # PDF 파일 리스트
 # =====================================================
-
-pdf_files = [f for f in os.listdir(PDF_DIR) if f.lower().endswith(".pdf")]
+pdf_files = [f for f in os.listdir(INPUT_DIR) if f.lower().endswith(".pdf")]
 
 # =====================================================
 # PDF 반복 처리
@@ -29,7 +25,7 @@ pdf_files = [f for f in os.listdir(PDF_DIR) if f.lower().endswith(".pdf")]
 
 for pdf_file in pdf_files:
 
-    pdf_path = os.path.join(PDF_DIR, pdf_file)
+    pdf_path = os.path.join(INPUT_DIR, pdf_file)
 
     report_name = pdf_file
     rcept_no = "LOCAL_PDF"
@@ -228,7 +224,7 @@ for pdf_file in pdf_files:
     # JSON 저장
     # =====================================================
 
-    file_path = os.path.join(DOWNLOAD_DIR, f"{safe_company_name}_{document_uuid}.json")
+    file_path = os.path.join(PROCESSED_JSON_DIR, f"{safe_company_name}_{document_uuid}.json")
 
     with open(file_path, "w", encoding="utf-8") as f:
 

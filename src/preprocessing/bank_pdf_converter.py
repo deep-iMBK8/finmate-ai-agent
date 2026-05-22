@@ -11,23 +11,19 @@ from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 
+from src.config.paths import RAW_PDF_DIR, PROCESSED_JSON_DIR, PROCESSED_IMAGE_DIR
+
 load_dotenv()
 
 google_api_key = os.getenv("GOOGLE_API_KEY")
 
-
 client = genai.Client(api_key=google_api_key)
 
-PROJECT_ROOT = os.getcwd()
-
-INPUT_DIR = os.path.join(PROJECT_ROOT, "data", "raw", "pdf", "personal")
-DOWNLOAD_DIR = os.path.join(PROJECT_ROOT, "data", "processed", "json")
-IMAGE_DIR = os.path.join(PROJECT_ROOT, "data", "processed", "images")
+INPUT_DIR = os.path.join(RAW_PDF_DIR, "personal")
 
 os.makedirs(INPUT_DIR, exist_ok=True)
-os.makedirs(DOWNLOAD_DIR, exist_ok=True)
-os.makedirs(IMAGE_DIR, exist_ok=True)
-
+os.makedirs(PROCESSED_JSON_DIR, exist_ok=True)
+os.makedirs(PROCESSED_IMAGE_DIR, exist_ok=True)
 
 def extract_and_save_images(pdf_path, doc_uuid, out_dir):
     """PDF에서 물리적인 이미지를 추출하여 로컬에 저장하고 리스트를 반환합니다."""
@@ -198,7 +194,7 @@ def process_all_pdfs():
         safe_company = re.sub(r'[\\/*?:"<>|]', "", final_company)
 
         json_filename = f"{safe_company}_{document_uuid}.json"
-        file_path = os.path.join(DOWNLOAD_DIR, json_filename)
+        file_path = os.path.join(JSON_DIR, json_filename)
 
         with open(file_path, "w", encoding="utf-8") as f:
             json.dump(document_data, f, ensure_ascii=False, indent=2)

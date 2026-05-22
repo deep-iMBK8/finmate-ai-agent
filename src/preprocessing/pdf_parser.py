@@ -10,11 +10,9 @@ from bs4 import BeautifulSoup
 from pdfminer.high_level import extract_text_to_fp
 from pdfminer.layout import LAParams
 
+from src.config.paths import RAW_DIR, PROCESSED_DIR
 
-DEFAULT_INPUT_DIR = "data/raw"
 SUPPORTED_EXTENSIONS = {".pdf", ".html", ".htm", ".xml", ".txt"}
-DEFAULT_OUTPUT_DIR = "data/processed"
-
 
 # ==================================================
 # 기본 유틸 함수
@@ -525,7 +523,7 @@ def save_text_and_json(
 
 def save_parsed_file(
     file_path: str,
-    output_dir: str = DEFAULT_OUTPUT_DIR,
+    output_dir: str = PROCESSED_DIR,
     user_id: str = None,
     document_sector: str = "bank",
     document_date: str = None,
@@ -572,7 +570,7 @@ def build_parser():
 
     parser.add_argument(
         "--input-dir",
-        default=DEFAULT_INPUT_DIR,
+        default=RAW_DIR,
         help="파싱할 PDF/HTML/XML/TXT 파일들이 들어있는 폴더"
     )
 
@@ -591,7 +589,7 @@ def build_parser():
 
     parser.add_argument(
         "--output-dir",
-        default=DEFAULT_OUTPUT_DIR,
+        default=PROCESSED_DIR,
         help="파싱 결과 저장 폴더"
     )
 
