@@ -11,9 +11,6 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
-# ==========================================
-# [Step 1] RDB(SQLite) 세팅 및 데이터 적재
-# ==========================================
 def setup_rdb(json_folder="src/chunking"):
     print("1. RDB(SQLite) 초기화 및 메타데이터 적재 중...")
     conn = sqlite3.connect(':memory:') 
@@ -49,9 +46,6 @@ def setup_rdb(json_folder="src/chunking"):
     conn.commit()
     return conn
 
-# ==========================================
-# [Step 2 & 3] 자연어 파싱 및 RDB 필터링
-# ==========================================
 def extract_metadata_and_query_rdb(query, db_conn):
     print("\n2. [RDB 검색] 질의 의도 파악 및 SQL 필터링 실행...")
     cursor = db_conn.cursor()
@@ -73,9 +67,6 @@ def extract_metadata_and_query_rdb(query, db_conn):
     print(f"   -> RDB 필터링 결과: 총 {len(result_uuids)}개의 원본 문서 ID 확보")
     return result_uuids
 
-# ==========================================
-# [Step 4 & 5] Vector + BM25 하이브리드 검색 및 앙상블 (RRF)
-# ==========================================
 def perform_hybrid_search(query, target_uuids, vector_db, json_folder="src/chunking", top_k=5):
     if not target_uuids:
         return []
@@ -125,9 +116,6 @@ def perform_hybrid_search(query, target_uuids, vector_db, json_folder="src/chunk
     sorted_docs = sorted(fused_scores.items(), key=lambda x: x[1], reverse=True)
     return [doc_map[doc_id] for doc_id, score in sorted_docs[:top_k]]
 
-# ==========================================
-# [Step 6] Reranker (Cross-Encoder) 재정렬
-# ==========================================
 def rerank_results(query, retrieved_docs, top_k=3):
     if not retrieved_docs:
         return []
@@ -144,9 +132,6 @@ def rerank_results(query, retrieved_docs, top_k=3):
     
     return [doc for doc, score in scored_docs[:top_k]]
 
-# ==========================================
-# [Step 7] LLM 기반 최종 답변 생성 (RAG)
-# ==========================================
 def generate_rag_answer(query, retrieved_docs, api_key):
     if not retrieved_docs:
         return "관련 문서를 찾을 수 없어 답변을 생성할 수 없습니다."
@@ -184,15 +169,11 @@ def generate_rag_answer(query, retrieved_docs, api_key):
     except Exception as e:
         return f"답변 생성 중 오류가 발생했습니다: {e}"
 
-# ==========================================
-# 실행부 (Main) - 모든 코드가 이곳에서 순차적으로 실행됩니다.
-# ==========================================
 if __name__ == "__main__":
-    # 0. 구글 Gemini API 키 
-    # (여기에 발급받으신 실제 API 키를 꼭 입력해주세요!)
+
     GEMINI_API_KEY = "AIzaSyDp9-8sYzjUEXVT1lAmZSFUFYJqdhZD2QA" 
 
-    # 1. 기존에 구축한 Chroma DB 로드
+
     print("0. 기존 벡터 DB (Chroma) 로드 중...")
     embedding_model = HuggingFaceEmbeddings(
         model_name="BAAI/bge-m3",
@@ -205,16 +186,15 @@ if __name__ == "__main__":
         collection_name="finmate_bank_docs"
     )
 
-    # 2. 파이프라인 초기화
+
     rdb_conn = setup_rdb()
     
-    # 3. 사용자 질문
+
     user_query = "주택청약 1순위가 되려면 어떻게 해야 하나요?"
     print(f"\n=============================================")
-    print(f"🧐 사용자 질문: '{user_query}'")
+    print(f" 사용자 질문: '{user_query}'")
     print(f"=============================================")
 
-    # [Pipeline 실행]
     # Step 1~3: RDB 필터링
     target_uuids = extract_metadata_and_query_rdb(user_query, rdb_conn)
     
@@ -225,7 +205,7 @@ if __name__ == "__main__":
     final_docs = rerank_results(user_query, hybrid_docs, top_k=3)
 
     # [결과 출력: 검색된 문서 확인용]
-    print(f"\n✅ 최종 검색 결과 (Top {len(final_docs)}):")
+    print(f"\n 최종 검색 결과 (Top {len(final_docs)}):")
     for i, doc in enumerate(final_docs, 1):
         meta = doc.metadata
         print(f"\n[{i}위] 출처: {meta.get('company')} - {meta.get('document_type')} ({meta.get('page_number')}p)")
@@ -236,11 +216,11 @@ if __name__ == "__main__":
         final_answer = generate_rag_answer(user_query, final_docs, GEMINI_API_KEY)
         
         print("\n=============================================")
-        print("🤖 [FINMATE AI의 답변]")
+        print(" [FINMATE AI의 답변]")
         print("=============================================")
         print(final_answer)
         
-        print("\n[📚 참고한 출처]")
+        print("\n[ 참고한 출처]")
         for i, doc in enumerate(final_docs, 1):
             meta = doc.metadata
             print(f"- {meta.get('company')} {meta.get('document_type')} ({meta.get('page_number')}페이지)")

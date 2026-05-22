@@ -18,9 +18,6 @@ from langchain_core.output_parsers import StrOutputParser
 # API 키 설정
 os.environ["GOOGLE_API_KEY"] = "AIzaSyDp9-8sYzjUEXVT1lAmZSFUFYJqdhZD2QA"
 
-# ==========================================
-# 1. RAG 파이프라인 기본 모듈 (검색 엔진)
-# ==========================================
 def setup_rdb(json_folder="src/chunking"):
     conn = sqlite3.connect(':memory:')
     cursor = conn.cursor()
@@ -98,11 +95,6 @@ def generate_rag_answer(query, retrieved_docs, category):
     return (prompt | llm | StrOutputParser()).invoke({"context": context_text, "question": query})
 
 
-# ==========================================
-# 2. 문서 도메인별 전용 파이프라인 함수 (실제 데이터 연동)
-# ==========================================
-# 추후 은행, 보험 등 도메인별로 필터링 로직을 다르게 커스텀할 수 있도록 함수를 분리했습니다.
-
 def search_bank_product(query: str, rdb_conn, vector_db) -> str:
     uuids = extract_metadata_and_query_rdb(query, rdb_conn)
     hybrid_docs = perform_hybrid_search(query, uuids, vector_db)
@@ -131,10 +123,6 @@ def handle_general_chat(query: str) -> str:
     llm = ChatGoogleGenerativeAI(model="gemini-3.1-flash-lite")
     return llm.invoke(query).content
 
-
-# ==========================================
-# 3. LLM 의도 분류기 (Router)
-# ==========================================
 class IntentClassification(BaseModel):
     category: str = Field(description="은행, 보험, 주식, 카드, 일반 중 하나를 선택하세요.")
 
@@ -155,10 +143,6 @@ def classify_intent_with_llm(query: str) -> str:
     
     return (prompt | structured_llm).invoke({"question": query}).category
 
-
-# ==========================================
-# 4. Chainlit 설정 및 앱 실행 (UI)
-# ==========================================
 @lru_cache(maxsize=1)
 def get_db_and_model():
     return Chroma(persist_directory="data/chroma_db", embedding_function=HuggingFaceEmbeddings(model_name="BAAI/bge-m3"), collection_name="finmate_bank_docs")
@@ -181,7 +165,7 @@ async def start():
     
     await cl.Message(
         content="안녕하세요! 금융 비서 **FinMate**입니다.\n"
-                "좌측 설정(⚙️) 메뉴에서 검색 분야를 직접 지정하시거나, "
+                "좌측 설정 메뉴에서 검색 분야를 직접 지정하시거나, "
                 "그냥 질문해주시면 AI가 알아서 알맞은 문서를 찾아 답변해 드립니다!"
     ).send()
 
@@ -209,14 +193,14 @@ async def main(message: cl.Message):
 
     # [라우팅 2단계] 자동 분류 모드일 경우 LLM 의도 파악
     else:
-        with cl.Step(name="🤖 AI 의도 분석기 가동") as step:
+        with cl.Step(name=" AI 의도 분석기 가동") as step:
             category = classify_intent_with_llm(query)
             step.output = f"분석 결과: **'{category}'** 관련 질문으로 판단됨."
     
     # [라우팅 3단계] 결정된 카테고리에 맞춰 실제 RAG 검색 실행
     final_answer = ""
     
-    with cl.Step(name=f"🛠️ {category} 전용 검색 및 답변 생성") as step:
+    with cl.Step(name=f" {category} 전용 검색 및 답변 생성") as step:
         if category == "은행":
             final_answer = search_bank_product(query, rdb_conn, vector_db)
         elif category == "보험":
@@ -230,5 +214,4 @@ async def main(message: cl.Message):
             
         step.output = "완료되었습니다."
 
-    # 실제 검색된 최종 상세 결과를 화면에 출력
     await cl.Message(content=final_answer).send()
