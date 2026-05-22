@@ -3,6 +3,8 @@ import json
 import os
 import re
 
+from src.config.paths import JSON_DIR, CHUNKS_DIR
+
 
 def convert_table_to_markdown(table_data):
     """JSON 표 데이터를 마크다운 형식으로 변환"""
@@ -177,6 +179,4 @@ def batch_process_json_files(input_dir, output_dir):
 
 
 if __name__ == "__main__":
-    INPUT_JSON_DIR = "data/processed/json"
-    OUTPUT_CHUNK_DIR = "src/chunking"
-    batch_process_json_files(INPUT_JSON_DIR, OUTPUT_CHUNK_DIR)
+    batch_process_json_files(JSON_DIR, CHUNKS_DIR)
