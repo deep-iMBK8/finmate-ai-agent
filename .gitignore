@@ -4,7 +4,6 @@ __pycache__/
 
 # Conda
 .env
-.env.example
 .venv
 venv/
 env/
