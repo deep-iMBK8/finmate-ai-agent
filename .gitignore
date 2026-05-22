@@ -19,6 +19,7 @@ data/processed/
 output/ocr_text/
 data/chunks/
 data/embeddings/
+data/chroma_db/
 
 # Model
 checkpoints/
