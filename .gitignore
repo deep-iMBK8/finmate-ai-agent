@@ -16,6 +16,7 @@ notebooks/*.ipynb
 data/
 data/raw/
 data/processed/
+output/ocr_text/
 data/chunks/
 data/embeddings/
 
