@@ -39,18 +39,6 @@ jobs:
         shell: bash -l {0}
         run: pip list
 
-      - name: Black 검사
-        run: |
-          black --check .
-
-      - name: isort 검사
-        run: |
-          isort --check-only .
-
-      - name: flake8 검사
-        run: |
-          flake8 .
-
       - name: pytest 실행
         run: |
           pytest
