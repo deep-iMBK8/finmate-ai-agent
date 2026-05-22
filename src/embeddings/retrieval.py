@@ -4,7 +4,7 @@ from sentence_transformers import SentenceTransformer
 from src.config.paths import CHROMA_DIR
 
 # Chroma client 생성
-# client = chromadb.PersistentClient(path="../chroma_db")
+# client = chromadb.PersistentClient(path="../data/chroma_db")
 client = chromadb.PersistentClient(path=CHROMA_DIR)
 
 collection = client.get_or_create_collection(name="financial_documents")
