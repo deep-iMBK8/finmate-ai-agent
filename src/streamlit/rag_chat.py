@@ -4,7 +4,7 @@ from pathlib import Path
 
 import streamlit as st
 
-sys.path.append(str(Path(__file__).resolve().parent.parent / "vectordb"))
+sys.path.append(str(Path(__file__).resolve().parent.parent / "rag"))
 from image_rag import _make_clients, answer_from_text, chat, ocr_image_bytes
 
 # ── 페이지 설정 ────────────────────────────────────────────────────────────────
