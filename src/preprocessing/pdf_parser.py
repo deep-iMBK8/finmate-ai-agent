@@ -13,7 +13,7 @@ from pdfminer.layout import LAParams
 
 DEFAULT_INPUT_DIR = "data/raw"
 SUPPORTED_EXTENSIONS = {".pdf", ".html", ".htm", ".xml", ".txt"}
-DEFAULT_OUTPUT_DIR = "data/processed/ocr_text"
+DEFAULT_OUTPUT_DIR = "data/processed"
 
 
 # ==================================================

@@ -437,7 +437,7 @@ def main():
 
     parser.add_argument(
         "--output-dir",
-        default="data/processed/ocr_text",
+        default="data/processed",
         help="OCR 결과 저장 폴더"
     )
 
