@@ -1,12 +1,10 @@
-import os
-import uuid
 from pathlib import Path
 from datetime import datetime
 
-from preprocessing.pdf_bank_converter import extract_bank_pdf
-from preprocessing.pdf_card_parser import extract_card_pdf
+from src.preprocessing.pdf_bank_converter import extract_bank_pdf
+from src.preprocessing.pdf_card_parser import extract_card_pdf
 from src.preprocessing.pdf_insurance_parser import extract_insurance_pdf
-from preprocessing.pdf_stock_parser import extract_stock_pdf
+from src.preprocessing.pdf_stock_parser import extract_stock_pdf
 
 class PDFRouter:
     def __init__(self):
@@ -20,7 +18,7 @@ class PDFRouter:
 
     def process_pdf(self, sector: str, pdf_path: Path, metadata: dict = None) -> dict:
         # 사용자가 선택한 sector에 따라 적절한 파서를 매칭하여 실행
-        sector = sector.lower().strip()
+        sector = sector.strip()
         if sector not in self.router:
             raise ValueError(f"지원하지 않는 섹터입니다: {sector}.")
 
