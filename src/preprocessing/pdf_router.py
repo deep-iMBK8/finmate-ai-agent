@@ -10,10 +10,10 @@ class PDFRouter:
     def __init__(self):
         # 사용자의 입력 키값과 실제 함수 매핑
         self.router = {
-            "은행": extract_bank_pdf,
-            "카드": extract_card_pdf,
-            "보험": extract_insurance_pdf,
-            "투자": extract_stock_pdf
+            "bank": extract_bank_pdf,
+            "card": extract_card_pdf,
+            "insurance": extract_insurance_pdf,
+            "stock": extract_stock_pdf
         }
 
     def process_pdf(self, sector: str, pdf_path: Path, metadata: dict = None) -> dict:

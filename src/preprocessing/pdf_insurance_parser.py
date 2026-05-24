@@ -1,3 +1,6 @@
+# TODO:
+# 리턴 구조 (document_data) 분리
+
 import json
 import os
 import re
@@ -29,7 +32,7 @@ def extract_insurance_pdf(pdf_path: Path, metadata: dict = None) -> dict:
     report_name = metadata.get("document_title") or filename
     document_uuid = str(uuid.uuid4())
 
-    print(f"\n'{filename}' 분석 및 파싱 시작...")
+    print(f"\n'[insurance] {filename}' 변환 시작...")
 
     try:
         # 사용된 파싱 기술 엔진 기록 초기화

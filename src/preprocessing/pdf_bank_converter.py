@@ -1,3 +1,12 @@
+# TODO:
+# 테이블 구조 보존되게 개선 필요
+# 개행문자 \n 처리 필요
+# subtitle 없으면 빈문자열로 처리
+# 유틸 함수 모듈화 (파일이름 가공 코드 같은 거)
+# 프롬프트 파일 분리
+# 이미지 alt도 개선 필요 (llm에 이미지 넣어서 alt용 텍스트 추출해달라 하는 등의 방법)
+# 이미지도 저장할 건지 논의 필요
+
 import json
 import os
 import re
@@ -75,7 +84,7 @@ def extract_bank_pdf(pdf_path: Path, metadata: dict = None) -> dict:
     document_uuid = str(uuid.uuid4())
     current_time = datetime.now().isoformat()
 
-    print(f"'{filename}' 분석 및 Gemini 업로드 시작...")
+    print(f"\n'[bank] {filename}' 변환 시작...")
 
     prompt = f"""
     당신은 금융 문서를 분석하는 AI입니다.

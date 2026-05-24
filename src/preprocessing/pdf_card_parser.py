@@ -1,3 +1,9 @@
+# TODO:
+# 유틸 함수 분리 필요
+# document_data 분리 필요
+# 개행문자 \n 처리 필요
+# "metadata" 키 있음 - 구조 맞추기. 넣을 건지 뺄 건지
+
 import io
 import json
 import os
@@ -132,6 +138,7 @@ def split_text_pages_from_html(html_content: str, title: str, document_uuid: str
                 "subtitle": title,
                 "text": "",
                 "tables": [],
+                "images": [], 
             }
         )
     return pages
@@ -239,7 +246,7 @@ def extract_card_pdf(pdf_path: Path, metadata: dict = None) -> dict:
     filename = pdf_path.name
     
     document_uuid = str(uuid.uuid4())
-    print(f"\n'{filename}' 분석 및 HTML 구조 파싱 시작...")
+    print(f"\n[card] '{filename}' 변환 시작...")
 
     try:
         # 1. HTML 변환 엔진 가동 및 페이지/표 완전 분리 추출
@@ -254,18 +261,18 @@ def extract_card_pdf(pdf_path: Path, metadata: dict = None) -> dict:
         final_company = metadata.get("company") or infer_company(full_text, fallback="Unknown")
         final_document_type = metadata.get("document_type") or "약관/설명서"
 
-        # 3. 데이터 적재 규격 구조화 (Standard RAG Schema)
-        rag_document = {
+        # 3. RAG용 데이터 스키마
+        document_data = {
             "document_uuid": document_uuid,
             "user_id": user_id,
-            "sector": "card",  # 카드 전용 고정 매핑
+            "sector": "card", 
             "document_date": document_date,
             "document_type": final_document_type,
             "company": final_company,
             "document_title": final_title,
             "created_at": datetime.now().isoformat(),
             "file_type": "pdf",
-            "processing_engine": "pdfminer_html_beautifulsoup",
+            "processing_engine": ["pdfminer", "beautifulsoup"],
             "pages_count": len(pages),
             "pages": pages,
             "metadata": {
@@ -292,12 +299,13 @@ def extract_card_pdf(pdf_path: Path, metadata: dict = None) -> dict:
         # 파일 물리 쓰기 처리
         txt_path.write_text(full_text, encoding="utf-8")
         json_path.write_text(
-            json.dumps(rag_document, ensure_ascii=False, indent=2),
+            json.dumps(document_data, ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
 
         print(f"JSON 및 백업 TXT 저장 성공: {json_path}")
-        return rag_document
+
+        return document_data
 
     except Exception as e:
         print(f"Error: [{filename}] 카드 PDF 문서 파싱 중 오류 발생: {e}")

@@ -1,3 +1,9 @@
+# TODO:
+# 유틸 함수 분리 필요
+# 리턴 구조 (document_data) 분리 필요
+# 표 구조 유지 안 됨 html parser 필요할듯
+# "company":"TIGER미국S&P500배당귀족" 회사명 추출 제대로 안 됨
+
 import json
 import os
 import re
@@ -78,7 +84,7 @@ def extract_stock_pdf(pdf_path: Path, metadata: dict = None) -> dict:
     filename = pdf_path.name
     
     document_uuid = str(uuid.uuid4())
-    print(f"\n'{filename}' 분석 및 pdfplumber 구조 파싱 시작...")
+    print(f"\n'[stock] {filename}' 변환 시작...")
 
     try:
         # 1. 파일 유효성(PDF 바이너리 헤더) 검출 가드 코드
@@ -96,7 +102,7 @@ def extract_stock_pdf(pdf_path: Path, metadata: dict = None) -> dict:
         # 3. 데이터 적재 스키마 초기화
         document_data = {
             "document_uuid": document_uuid,
-            "sector": "stock",  # 증권 업권 고정 매핑
+            "sector": "stock",
             "document_date": document_date,
             "document_type": document_type,
             "company": company,
