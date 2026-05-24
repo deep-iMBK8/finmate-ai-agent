@@ -1,8 +1,10 @@
 # TODO:
-# 유틸 함수 분리 필요
-# document_data 분리 필요
+# 페이지 1개로 처리됨 - 페이지 정보 살리기
+# 페이지별 subtitle 없으면 빈문자열로 처리
 # 개행문자 \n 처리 필요
 # "metadata" 키 있음 - 구조 맞추기. 넣을 건지 뺄 건지
+# 유틸 함수 분리 필요
+# document_data 분리 필요
 
 import io
 import json
