@@ -5,16 +5,15 @@ st.title("금융 문서 통합 파싱 가이드 UI")
 
 # 1. UI 컨트롤러 배치
 sector = st.selectbox("업권을 선택하세요", ["은행", "카드", "보험", "투자"])
-uploaded_file = st.file_uploader("파일을 업로드하세요", type=["pdf"])
+uploaded_file = st.file_uploader("파일을 업로드하세요", type=["pdf", "png", "jpg", "jpeg", "webp"])
 
 if st.button("문서 업로드") and uploaded_file is not None:
     # TODO: 기존에 업로드된 파일인지 체크하는 로직 필요
-    # 메타데이터 비교
-    # "sector", "document_type", "company", "document_title"
+    # 메타데이터 비교 "sector", "document_type", "company", "document_title"
 
     with st.spinner("텍스트 추출 중입니다..."):
         # 2. FastAPI 백엔드로 전송할 멀티파트 폼 데이터 구성
-        files = {"file": (uploaded_file.name, uploaded_file.getvalue(), "application/pdf")}
+        files = {"file": (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type)}
         data = {"sector": sector}
         
         # 3. FastAPI 엔드포인트 호출

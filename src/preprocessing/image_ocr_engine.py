@@ -5,32 +5,33 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
-from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 
-from src.config.paths import (
-    PROCESSED_JSON_DIR,
-    PROCESSED_TXT_DIR,
-    RAW_IMAGE_DIR,
-)
-# from src.preprocessing.image_ocr_engine import GeminiOCREngine
-
+from src.config.paths import (PROCESSED_JSON_DIR, PROCESSED_TXT_DIR)
 
 class GeminiOCREngine:
     def __init__(self, project: str, location: str = "global"):
         # Vertex AI 클라이언트 초기화
-        self.client = genai.Client(
-            vertexai=True,
-            project=project,
-            location=location
-        )
+        self.client = genai.Client(vertexai=True, project=project, location=location)
+
+    def process_image(self, image_path: Path, metadata: dict, model_name: str = "gemini-2.5-flash") -> dict:
+        # 1단계: 순수 텍스트 및 마크다운 표 OCR 추출
+        raw_text = self.extract_raw_ocr_text(image_path, model_name)
+        
+        # 2단계: 1차 결과를 기반으로 계층형 JSON 스키마 빌드
+        document_data = self.build_structured_json(image_path, raw_text, model_name, metadata)
+        
+        # 3단계: TXT 및 JSON 파일을 로컬에 저장
+        self.save_outputs(image_path, raw_text, document_data)
+        
+        # 완성된 JSON 데이터 리턴
+        return document_data
 
     def extract_raw_ocr_text(self, image_path: Path, model_name: str) -> str:
         """1단계: 이미지에서 1차 순수 텍스트 및 마크다운 표 OCR 추출"""
         mime_type = mimetypes.guess_type(image_path.name)[0] or "image/jpeg"
         
-        # 금융 문서에 특화된 프롬프트 (첫 번째 작업자 버전 차용)
         prompt = """
         너는 금융 문서 OCR 전문가이다.
 
@@ -166,11 +167,8 @@ class GeminiOCREngine:
             
         file_base_name = f"{corp_name}_{json_data['document_uuid']}"
 
-        # src/config/paths.py 의 전역 경로 상수 참조
         txt_output_path = PROCESSED_TXT_DIR / f"{image_path.stem}.txt"
         json_output_path = PROCESSED_JSON_DIR / f"{file_base_name}.json"
-
-        # 디렉토리 생성 보장
         txt_output_path.parent.mkdir(parents=True, exist_ok=True)
         json_output_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -183,52 +181,52 @@ class GeminiOCREngine:
 
         return txt_output_path, json_output_path
 
-def main():
-    # 1. 경로 보장 및 환경 변수 빌드
-    load_dotenv()
+# def main():
+#     # 1. 경로 보장 및 환경 변수 빌드
+#     load_dotenv()
 
-    project = os.getenv("GOOGLE_CLOUD_PROJECT")
-    location = os.getenv("GOOGLE_CLOUD_LOCATION", "global")
+#     project = os.getenv("GOOGLE_CLOUD_PROJECT")
+#     location = os.getenv("GOOGLE_CLOUD_LOCATION", "global")
 
-    if not project:
-        raise RuntimeError(".env 환경변수에 GOOGLE_CLOUD_PROJECT 설정을 확인하세요.")
+#     if not project:
+#         raise RuntimeError(".env 환경변수에 GOOGLE_CLOUD_PROJECT 설정을 확인하세요.")
 
-    # 2. 엔진 활성화
-    engine = GeminiOCREngine(project=project, location=location)
+#     # 2. 엔진 활성화
+#     engine = GeminiOCREngine(project=project, location=location)
 
-    # 3. 로우 데이터 저장소 타겟팅 스캔
-    print(f"Target Scanning: {RAW_IMAGE_DIR}")
+#     # 3. 로우 데이터 저장소 타겟팅 스캔
+#     print(f"Target Scanning: {RAW_IMAGE_DIR}")
     
-    valid_extensions = {".jpg", ".jpeg", ".png", ".webp"}
-    for img_path in RAW_IMAGE_DIR.glob("*"):
-        if img_path.suffix.lower() not in valid_extensions:
-            continue
+#     valid_extensions = {".jpg", ".jpeg", ".png", ".webp"}
+#     for img_path in RAW_IMAGE_DIR.glob("*"):
+#         if img_path.suffix.lower() not in valid_extensions:
+#             continue
 
-        print(f"\n파일 처리 중...: {img_path.name}")
+#         print(f"\n파일 처리 중...: {img_path.name}")
         
-        try:
-            # 기본 메타데이터 세팅 피딩 정보
-            feed_metadata = {
-                "sector": "은행",
-                "company": None, 
-                "document_title": None
-            }
+#         try:
+#             # 기본 메타데이터 세팅 피딩 정보
+#             feed_metadata = {
+#                 "sector": "은행",
+#                 "company": None, 
+#                 "document_title": None
+#             }
 
-            # 파이프라인 처리
-            raw_text = engine.extract_raw_ocr_text(img_path, "gemini-2.5-flash")
-            structured_data = engine.build_structured_json(img_path, raw_text, "gemini-2.5-flash", feed_metadata)
+#             # 파이프라인 처리
+#             raw_text = engine.extract_raw_ocr_text(img_path, "gemini-2.5-flash")
+#             structured_data = engine.build_structured_json(img_path, raw_text, "gemini-2.5-flash", feed_metadata)
 
-            # 규칙 기반 파일명 매핑 저장
-            txt_file, json_file = engine.save_outputs(img_path, raw_text, structured_data)
+#             # 규칙 기반 파일명 매핑 저장
+#             txt_file, json_file = engine.save_outputs(img_path, raw_text, structured_data)
             
-            print(f"[+] TXT 저장 완료 -> {txt_file.name}")
-            print(f"[+] JSON 저장 완료 -> {json_file.name}")
+#             print(f"[+] TXT 저장 완료 -> {txt_file.name}")
+#             print(f"[+] JSON 저장 완료 -> {json_file.name}")
 
-        except Exception as err:
-            print(f"[에러] Process Aborted for {img_path.name}: {err}")
+#         except Exception as err:
+#             print(f"[에러] Process Aborted for {img_path.name}: {err}")
 
-if __name__ == "__main__":
-    main()
+# if __name__ == "__main__":
+#     main()
 
 # class GeminiOCREngine:
 #     def __init__(self, project, location="global"):
