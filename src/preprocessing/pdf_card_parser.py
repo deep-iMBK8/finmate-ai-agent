@@ -2,8 +2,6 @@
 # 페이지 1개로 처리됨 - 페이지 정보 살리기
 # 페이지별 subtitle 없으면 빈문자열로 처리
 # 개행문자 \n 처리 필요
-# "metadata" 키 있음 - 구조 맞추기. 넣을 건지 뺄 건지
-# 유틸 함수 분리 필요
 # document_data 분리 필요
 
 import io
@@ -19,25 +17,9 @@ from pdfminer.high_level import extract_text_to_fp
 from pdfminer.layout import LAParams
 
 from src.config.paths import PROCESSED_JSON_DIR
+from src.utils.docs_helpers import clean_text, safe_filename
 
 os.makedirs(PROCESSED_JSON_DIR, exist_ok=True)
-
-# ==================================================
-# 기본 유틸 함수
-# ==================================================
-def clean_text(text: str) -> str:
-    text = text or ""
-    text = text.replace("\xa0", " ")
-    text = re.sub(r"[ \t]+", " ", text)
-    text = re.sub(r"\n\s*\n+", "\n\n", text)
-    return text.strip()
-
-
-def safe_filename(text: str) -> str:
-    text = str(text)
-    text = re.sub(r'[\\/*?:"<>|]', "_", text)
-    text = re.sub(r"\s+", "_", text)
-    return text.strip("_")
 
 
 # ==================================================
@@ -286,16 +268,16 @@ def extract_card_pdf(pdf_path: Path, metadata: dict = None) -> dict:
         }
 
         # 4. 파일시스템 안전 변환 및 물리 디렉토리 저장 조립
-        safe_company_name = safe_filename(final_company)
-        if not safe_company_name or safe_company_name == "_":
-            safe_company_name = "unknown"
+        safe_company = safe_filename(final_company, replace_space="_")
+        if not safe_company or safe_company == "_":
+            safe_company = "unknown"
 
         # 최종 가이드 주소인 PROCESSED_JSON_DIR에 저장하도록 매핑
-        json_filename = f"{safe_company_name}_{document_uuid}.json"
+        json_filename = f"{safe_company}_{document_uuid}.json"
         json_path = PROCESSED_JSON_DIR / json_filename
         
         # 순수 텍스트 평문 백업 파일 매핑
-        txt_filename = f"{safe_company_name}_{document_uuid}.txt"
+        txt_filename = f"{safe_company}_{document_uuid}.txt"
         txt_path = PROCESSED_JSON_DIR / txt_filename
 
         # 파일 물리 쓰기 처리

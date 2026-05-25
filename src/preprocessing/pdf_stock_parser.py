@@ -14,22 +14,9 @@ from pathlib import Path
 import pdfplumber
 
 from src.config.paths import PROCESSED_JSON_DIR
+from src.utils.docs_helpers import clean_text, safe_filename
 
 PROCESSED_JSON_DIR.mkdir(parents=True, exist_ok=True)
-
-# ==================================================
-# 기본 유틸 함수
-# ==================================================
-def clean_text(text: str) -> str:
-    if not text:
-        return ""
-    return re.sub(r"\s+", " ", text).strip()
-
-
-def safe_filename(name: str) -> str:
-    name = re.sub(r'[\\/*?:"<>|]', "", name)
-    name = re.sub(r"\s+", "", name)
-    return name if name else "unknown_company"
 
 
 def infer_company_from_filename(pdf_path: Path) -> str:
@@ -55,7 +42,7 @@ def extract_tables_from_page(page, document_uuid: str, page_idx: int) -> list:
     for table_idx, table in enumerate(extracted_tables, start=1):
         rows = []
         for row in table:
-            cleaned_row = [clean_text(cell) for cell in row]
+            cleaned_row = [clean_text(cell, keep_newlines=False) for cell in row]
             if any(cleaned_row):
                 rows.append(cleaned_row)
 
@@ -117,7 +104,7 @@ def extract_stock_pdf(pdf_path: Path, metadata: dict = None) -> dict:
         # 4. pdfplumber 엔진 열기 및 페이지별 추출
         with pdfplumber.open(pdf_path) as pdf:
             for page_idx, page in enumerate(pdf.pages, start=1):
-                text = clean_text(page.extract_text() or "")
+                text = clean_text(page.extract_text() or "", keep_newlines=False)
                 tables = extract_tables_from_page(page, document_uuid, page_idx)
 
                 page_data = {

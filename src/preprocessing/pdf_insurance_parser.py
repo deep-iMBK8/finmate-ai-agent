@@ -13,6 +13,8 @@ import fitz
 import pdfplumber
 
 from src.config.paths import PROCESSED_JSON_DIR
+from src.utils.docs_helpers import safe_filename
+
 
 os.makedirs(PROCESSED_JSON_DIR, exist_ok=True)
 
@@ -147,9 +149,9 @@ def extract_insurance_pdf(pdf_path: Path, metadata: dict = None) -> dict:
             print(f"  [-] [{filename}] 페이지 내부 정보 수집에 실패했습니다.")
             return {}
 
-        # 파일시스템 안전 파일명 변환 및 물리 저장
-        safe_company_name = re.sub(r'[\\/*?:"<>|]', "", company)
-        file_path = os.path.join(PROCESSED_JSON_DIR, f"{safe_company_name}_{document_uuid}.json")
+        # 로컬에 파일 저장
+        safe_company = safe_filename(company)
+        file_path = os.path.join(PROCESSED_JSON_DIR, f"{safe_company}_{document_uuid}.json")
 
         with open(file_path, "w", encoding="utf-8") as f:
             json.dump(document_data, f, ensure_ascii=False, indent=2)

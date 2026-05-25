@@ -10,6 +10,7 @@ from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 
 from src.config.paths import PROCESSED_JSON_DIR
+from src.utils.docs_helpers import safe_filename
 
 # api key 로드
 load_dotenv()
@@ -229,7 +230,7 @@ for report in report_list:
     # print(first_page_preview + " ... (후략)")
 
     # 파일명 안전 처리
-    safe_report_name = re.sub(r'[\\/*?:"<>|]', "", document_title)
+    safe_report_name = safe_filename(document_title)
 
     # JSON 확장자로 저장
     file_path = os.path.join(PROCESSED_JSON_DIR, f"{company}_{document_uuid}.json")
