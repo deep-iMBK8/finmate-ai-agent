@@ -27,15 +27,15 @@ async def parse_pdf_endpoint(
     #     raise HTTPException(status_code=400, detail=f"지원하지 않는 섹터명입니다: {clean_sector}")
     eng_sector = SECTOR_MAP[clean_sector]
 
+    # 사용자가 업로드한 파일 스트림을 로컬 물리 파일로 저장
     # 임시 파일 저장 경로
     # 예시: src/data/raw/pdf/bank/파일명.pdf
     temp_dir = RAW_PDF_DIR / eng_sector
     temp_dir.mkdir(parents=True, exist_ok=True)
     target_path = temp_dir / file.filename
-
-    # 사용자가 업로드한 파일 스트림을 로컬 물리 파일로 저장
     with target_path.open("wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
+
     try:
         # PDFRouter 동적 호출
         # metadata 딕셔너리를 함께 전달
