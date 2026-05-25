@@ -1,7 +1,7 @@
 from pathlib import Path
 from datetime import datetime
 
-from src.preprocessing.pdf_bank_converter import extract_bank_pdf
+from preprocessing.pdf_bank_parser import extract_bank_pdf
 from src.preprocessing.pdf_card_parser import extract_card_pdf
 from src.preprocessing.pdf_insurance_parser import extract_insurance_pdf
 from src.preprocessing.pdf_stock_parser import extract_stock_pdf
