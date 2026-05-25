@@ -1,10 +1,12 @@
 from datetime import datetime
 from pathlib import Path
 
-from src.preprocessing.pdf_bank_parser import extract_bank_pdf
-from src.preprocessing.pdf_card_parser import extract_card_pdf
-from src.preprocessing.pdf_insurance_parser import extract_insurance_pdf
-from src.preprocessing.pdf_stock_parser import extract_stock_pdf
+from src.preprocessing.pdf_parsers import (
+    extract_bank_pdf,
+    extract_card_pdf,
+    extract_insurance_pdf,
+    extract_stock_pdf,
+)
 
 
 class PDFRouter:
