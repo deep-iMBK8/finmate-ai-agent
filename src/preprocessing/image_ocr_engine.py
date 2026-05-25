@@ -77,10 +77,11 @@ class GeminiOCREngine:
 
         [출력 스키마 예시]
         {{
-          "corp_name": "문서에 명시된 금융회사명 또는 자산운용사명 (없으면 null)",
-          "report_name": "문서 종류 또는 제목 (없으면 null)",
-          "rcept_no": "접수 번호 등이 존재하면 기재 (없으면 null)",
+          "sector": ""
           "document_date": "문서 내 기재된 날짜 YYYY-MM-DD 형식 (없으면 null)",
+          "document_type": "",
+          "company": "문서에 명시된 금융회사명 또는 자산운용사명 (없으면 null)",
+          "document_title": "문서 종류 또는 제목 (없으면 null)",
           "pages": [
             {{
               "page_number": 1,
@@ -88,7 +89,7 @@ class GeminiOCREngine:
               "text": "표 영역을 제외하고 정제된 일반 본문 문장 중심 텍스트",
               "tables": [
                 {{
-                  "table_index": 1,
+                  "table_index": 0,
                   "rows": [
                     ["헤더1", "헤더2"],
                     ["값1", "값2"]
@@ -97,7 +98,7 @@ class GeminiOCREngine:
               ],
               "images": [
                 {{
-                    "image_index": 1, 
+                    "image_index": 0, 
                     "src": "src", 
                     "alt": "이미지에 대한 설명"
                 }}
@@ -142,8 +143,10 @@ class GeminiOCREngine:
             "document_uuid": document_uuid,
             "corp_name": ai_data.get("corp_name") or metadata.get("company") or "null",
             "report_name": ai_data.get("report_name") or metadata.get("document_title") or image_path.stem,
-            "rcept_no": ai_data.get("rcept_no") or "null",
             "created_at": created_at,
+            "file_type": file_type,
+            "processing_engine": [""], 
+            "pages_count": len(structured_document["pages"]),
             "pages": [
                 {
                     "page_id": page_id,
@@ -181,112 +184,3 @@ class GeminiOCREngine:
         )
 
         return txt_output_path, json_output_path
-
-# def main():
-#     # 1. 경로 보장 및 환경 변수 빌드
-#     load_dotenv()
-
-#     project = os.getenv("GOOGLE_CLOUD_PROJECT")
-#     location = os.getenv("GOOGLE_CLOUD_LOCATION", "global")
-
-#     if not project:
-#         raise RuntimeError(".env 환경변수에 GOOGLE_CLOUD_PROJECT 설정을 확인하세요.")
-
-#     # 2. 엔진 활성화
-#     engine = GeminiOCREngine(project=project, location=location)
-
-#     # 3. 로우 데이터 저장소 타겟팅 스캔
-#     print(f"Target Scanning: {RAW_IMAGE_DIR}")
-    
-#     valid_extensions = {".jpg", ".jpeg", ".png", ".webp"}
-#     for img_path in RAW_IMAGE_DIR.glob("*"):
-#         if img_path.suffix.lower() not in valid_extensions:
-#             continue
-
-#         print(f"\n파일 처리 중...: {img_path.name}")
-        
-#         try:
-#             # 기본 메타데이터 세팅 피딩 정보
-#             feed_metadata = {
-#                 "sector": "은행",
-#                 "company": None, 
-#                 "document_title": None
-#             }
-
-#             # 파이프라인 처리
-#             raw_text = engine.extract_raw_ocr_text(img_path, "gemini-2.5-flash")
-#             structured_data = engine.build_structured_json(img_path, raw_text, "gemini-2.5-flash", feed_metadata)
-
-#             # 규칙 기반 파일명 매핑 저장
-#             txt_file, json_file = engine.save_outputs(img_path, raw_text, structured_data)
-            
-#             print(f"[+] TXT 저장 완료 -> {txt_file.name}")
-#             print(f"[+] JSON 저장 완료 -> {json_file.name}")
-
-#         except Exception as err:
-#             print(f"[에러] Process Aborted for {img_path.name}: {err}")
-
-# if __name__ == "__main__":
-#     main()
-
-# class GeminiOCREngine:
-#     def __init__(self, project, location="global"):
-#         # Vertex AI 클라이언트 초기화
-#         self.client = genai.Client(vertexai=True, project=project, location=location)
-
-#     def extract_structured_data(self, image_path: Path, model_name: str, metadata: dict) -> dict:
-#         # OCR하고 정해진 구조로 json 반환
-#         prompt = """
-#         너는 금융 문서 OCR 전문가이다.
-
-#         이미지에 있는 모든 텍스트를 빠짐없이 추출해라.
-
-#         규칙:
-#         1. 원문 순서를 최대한 유지해라.
-#         2. 표는 Markdown 표 형식으로 복원해라.
-#         3. 체크박스는 체크된 경우 [x], 체크되지 않은 경우 [ ] 로 표시해라.
-#         4. 금액, 날짜, 금리, 수수료, 계좌번호, 상품명 등 금융 핵심 정보는 절대 누락하지 마라.
-#         5. 알아보기 어려운 글자는 추측하지 말고 [인식불가]로 표시해라.
-#         6. 설명을 덧붙이지 말고, 추출된 문서 내용만 출력해라.
-#         """
-        
-#         # 이미지 전송
-#         response = self.client.models.generate_content(
-#             model=model_name,
-#             contents=[types.Part.from_bytes(data=image_path.read_bytes(), mime_type="image/jpeg"), prompt]
-#         )
-        
-#         # 결과 파싱
-#         raw_result = json.loads(response.text.replace("```json", "").replace("```", "").strip())
-        
-#         # 요청하신 스키마로 조립
-#         page_id = str(uuid.uuid4())
-#         structured_data = {
-#             "document_uuid": str(uuid.uuid4()),
-#             "user_id": metadata.get("user_id", "unknown"),
-#             "sector": metadata.get("sector", "unknown"),
-#             "document_date": metadata.get("document_date", datetime.now().strftime("%Y-%m-%d")),
-#             "document_type": metadata.get("document_type", "unknown"),
-#             "company": metadata.get("company", "unknown"),
-#             "document_title": metadata.get("document_title", "unknown"),
-#             "created_at": datetime.now().isoformat(),
-#             "file_type": "image",
-#             "processing_engine": model_name,
-#             "pages_count": 1,
-#             "pages": [
-#                 {
-#                     "page_id": page_id,
-#                     "page_number": 1,
-#                     "subtitle": metadata.get("document_title", "Untitled"),
-#                     "text": raw_result["text"],
-#                     "tables": raw_result["tables"],
-#                 }
-#             ],
-#         }
-#         return structured_data
-
-#     def save_results(self, image_path: Path, data: dict):
-#         base_name = image_path.stem
-#         json_file = PROCESSED_JSON_DIR / f"{base_name}.json"
-#         json_file.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
-#         return json_file
