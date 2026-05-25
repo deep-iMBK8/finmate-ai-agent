@@ -194,7 +194,7 @@ def batch_process_json_files(
     custom_config: dict | None = None,  
 ) -> None:
     if custom_config is None:
-        custom_config = CUSTOM_CHUNK_CONFIG
+        custom_config = CUSTOM_CHUNK_CONFIG = {}
 
     os.makedirs(output_dir, exist_ok=True)
 
