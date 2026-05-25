@@ -57,7 +57,7 @@ else:
     for i in range(len(results["documents"][0])):
         doc = results["documents"][0][i]
         meta = results["metadatas"][0][i]
-        distance = results["distances"][0][i]  # 코사인 거리가 작을수록(0에 가까울수록) 유사도가 높음
+        distance = results["distances"][0][i]  # 코사인 거리가 0에 가까울수록 유사도가 높음
         
         print(f"\n[결과 {i+1}] (유사도 거리 점수: {distance:.4f})")
         print(f"회사명: {meta.get('company') or '알수없음'} | 페이지: {meta.get('page_number')}p")

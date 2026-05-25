@@ -80,7 +80,7 @@ for index, file_name in enumerate(json_files, 1):
         print(f"➔ [{index}/{len(json_files)}] {file_name}: 새로운 청크가 없어 패스합니다.")
         continue
         
-    print(f"🚀 [{index}/{len(json_files)}] {file_name} 처리 시작 (대상 청크: {len(new_chunks)}개)")
+    print(f"[{index}/{len(json_files)}] {file_name} 처리 시작 (대상 청크: {len(new_chunks)}개)")
     
     # 5. 배치 연산으로 임베딩 생성 및 ChromaDB 적재
     for i in range(0, len(new_chunks), BATCH_SIZE):
