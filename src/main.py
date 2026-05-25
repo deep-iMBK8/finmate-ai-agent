@@ -79,7 +79,7 @@ async def parse_pdf_endpoint(
                 "document_title": Path(filename).stem
             }
 
-            result_json = ocr_engine.process_image(image_path=target_path, metadata=feed_metadata)
+            result_json = image_ocr_engine.process_image(image_path=target_path, metadata=feed_metadata)
         
         else:
             raise HTTPException(status_code=400, detail=f"지원하지 않는 파일 형식입니다 ({file_suffix}).")
