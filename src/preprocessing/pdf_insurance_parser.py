@@ -15,7 +15,6 @@ import pdfplumber
 from src.config.paths import PROCESSED_JSON_DIR
 from src.utils.docs_helpers import safe_filename
 
-
 os.makedirs(PROCESSED_JSON_DIR, exist_ok=True)
 
 def extract_insurance_pdf(pdf_path: Path, metadata: dict = None) -> dict:

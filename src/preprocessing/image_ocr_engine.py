@@ -9,6 +9,7 @@ from google import genai
 from google.genai import types
 
 from src.config.paths import PROCESSED_JSON_DIR, PROCESSED_TXT_DIR
+from src.utils.docs_helpers import safe_filename
 
 
 class GeminiOCREngine:
@@ -163,10 +164,9 @@ class GeminiOCREngine:
         if corp_name.lower() == "null" or not corp_name:
             corp_name = "unknown"
             
-        for ch in r'/\:*?"<>|':
-            corp_name = corp_name.replace(ch, "_")
+        safe_company = safe_filename(corp_name)
             
-        file_base_name = f"{corp_name}_{json_data['document_uuid']}"
+        file_base_name = f"{safe_company}_{json_data['document_uuid']}"
 
         txt_output_path = PROCESSED_TXT_DIR / f"{image_path.stem}.txt"
         json_output_path = PROCESSED_JSON_DIR / f"{file_base_name}.json"

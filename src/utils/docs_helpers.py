@@ -1,5 +1,6 @@
 import re
 
+
 # 텍스트 내의 불필요한 특수 공백(\xa0) 및 연속된 공백을 정제
 # - keep_newlines=True: 개행 구조 유지 (카드 파서 등 중심)
 # - keep_newlines=False: 개행 없애고 한 줄로 축소 (증권 파서 등 중심)
