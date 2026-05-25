@@ -11,15 +11,12 @@ from pathlib import Path
 from google import genai
 from google.genai import types
 
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
-ENV_PATH = BASE_DIR / ".env"
-
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
 
 SECTOR_MAP = {
     "은행": "bank",
     "보험": "insurance",
-    "증권": "investment",
+    "증권": "stock",
     "카드": "card",
 }
 
@@ -412,9 +409,9 @@ def main():
     if args.aggregate_only:
         args.aggregate = True
 
-    load_dotenv(ENV_PATH)
-    project  = os.environ.get("GOOGLE_CLOUD_PROJECT")
-    location = os.environ.get("GOOGLE_CLOUD_LOCATION", "global")
+    load_dotenv()
+    project  = os.getenv("GOOGLE_CLOUD_PROJECT")
+    location = os.getenv("GOOGLE_CLOUD_LOCATION", "global")
 
     if not project:
         raise RuntimeError(".env에 GOOGLE_CLOUD_PROJECT=프로젝트ID 를 넣어주세요.")
