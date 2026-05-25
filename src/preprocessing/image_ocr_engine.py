@@ -162,7 +162,6 @@ class GeminiOCREngine:
                     "rows": cleaned_rows
                 })
 
-        # NameError 대비 내부 리스트를 사전에 객체화
         pages_list = [
             {
                 "page_id": page_id,
@@ -183,7 +182,7 @@ class GeminiOCREngine:
             "document_title": doc_title_val,
             "created_at": created_at,
             "file_type": file_type,
-            "processing_engine": ["gemini-ocr"], 
+            "processing_engine": model_name, 
             "pages_count": len(pages_list),
             "pages": pages_list,
             "metadata": {
