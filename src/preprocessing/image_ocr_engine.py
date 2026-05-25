@@ -63,6 +63,11 @@ class GeminiOCREngine:
         created_at = datetime.now().isoformat()
         file_type = image_path.suffix.lstrip(".").lower()
 
+        # 라우터 매핑용 섹터 영문명 자동 변환 사전 준비
+        sector_mapping = {"은행": "bank", "카드": "card", "보험": "insurance", "투자": "stock"}
+        user_sector_kr = metadata.get("sector", "은행")
+        default_sector_eng = sector_mapping.get(user_sector_kr, "bank")
+
         prompt = f"""
         당신은 금융 문서 OCR 결과를 청킹/RAG용 계층 구조 JSON으로 정리하는 데이터 정제 전문가입니다.
         아래 입력된 OCR 텍스트를 분석하여, 제공된 [출력 스키마] 규칙에 완벽히 맞는 JSON 데이터만 생성하세요.
@@ -77,16 +82,16 @@ class GeminiOCREngine:
 
         [출력 스키마 예시]
         {{
-          "sector": ""
-          "document_date": "문서 내 기재된 날짜 YYYY-MM-DD 형식 (없으면 null)",
-          "document_type": "",
-          "company": "문서에 명시된 금융회사명 또는 자산운용사명 (없으면 null)",
-          "document_title": "문서 종류 또는 제목 (없으면 null)",
+          "sector": "입력된 데이터가 속한 금융 업권 코드. ('bank', 'card', 'insurance', 'stock' 중 알맞은 값)",
+          "document_date": "문서 내 기재된 기준일자 혹은 발행날짜 YYYY-MM-DD 형식 (원문에서 식별 불가하면 null)",
+          "document_type": "문서의 상세 대분류 유형 명사 ('상품설명서', '핵심설명서', '약관', '대출계약서', '가입제안서', '영수증', '명세서', '통장사본' 등)",
+          "company": "문서에 명시된 금융회사명 또는 자산운용사명 (예: KB국민은행, 현대카드 등, 없으면 null)",
+          "document_title": "문서 종류 또는 메인 대제목 (없으면 null)",
           "pages": [
             {{
               "page_number": 1,
-              "subtitle": "페이지 소제목 또는 주요 헤더 (없으면 null)",
-              "text": "표 영역을 제외하고 정제된 일반 본문 문장 중심 텍스트",
+              "subtitle": "페이지 소제목 또는 헤더 (없으면 null)",
+              "text": "표 영역을 제외하고 정제된 일반 본문 줄글 중심 텍스트",
               "tables": [
                 {{
                   "table_index": 0,
@@ -95,13 +100,6 @@ class GeminiOCREngine:
                     ["값1", "값2"]
                   ]
                 }}
-              ],
-              "images": [
-                {{
-                    "image_index": 0, 
-                    "src": "src", 
-                    "alt": "이미지에 대한 설명"
-                }}
               ]
             }}
           ]
@@ -109,7 +107,7 @@ class GeminiOCREngine:
 
         [참고 문맥 정보]
         - 원본 파일명: {image_path.name}
-        - 유저 입력 섹터: {metadata.get("sector", "bank")}
+        - 권장 지정 섹터값: {default_sector_eng}
 
         [원본 OCR 텍스트]
         {ocr_text}
@@ -125,49 +123,83 @@ class GeminiOCREngine:
         
         # 텍스트 마크다운 태그 정제 및 파싱
         json_text = response.text.strip().removeprefix("```json").removesuffix("```").strip()
-        ai_data = json.loads(json_text)
+        
+        try:
+            ai_data = json.loads(json_text)
+        except Exception:
+            # 안전장치 예외 처리용 폴백(Fallback) 구조
+            ai_data = {}
 
-        # 시스템 ID 규칙 바인딩 및 정규화 구조 조립
+        # 기존 스키마 키 불일치 및 안전 바인딩 처리 개편
+        sector_val = ai_data.get("sector") or default_sector_eng
+        company_val = ai_data.get("company") or metadata.get("company") or "unknown"
+        doc_title_val = ai_data.get("document_title") or metadata.get("document_title") or image_path.stem
+        doc_date_val = ai_data.get("document_date") or None
+        doc_type_val = ai_data.get("document_type") or "이미지 OCR"
+
         page_number = 1
         page_id = f"{document_uuid}_p{page_number}"
 
-        normalized_tables = []
-        for idx, tbl in enumerate(ai_data.get("pages", [{}])[0].get("tables", []), start=1):
-            normalized_tables.append({
-                "table_id": f"{page_id}_tbl{idx}",
-                "table_index": idx,
-                "rows": [[str(cell) if cell is not None else "" for cell in row] if isinstance(row, list) else [str(row)] for row in tbl.get("rows", [])]
-            })
+        # 1개의 단일 페이지만 존재하므로 안전하게 첫 번째 요소 추출
+        ai_pages = ai_data.get("pages", [{}])
+        first_page = ai_pages[0] if isinstance(ai_pages, list) and ai_pages else {}
 
+        normalized_tables = []
+        for idx, tbl in enumerate(first_page.get("tables", []), start=1):
+            if isinstance(tbl, dict):
+                rows_data = tbl.get("rows", [])
+                cleaned_rows = []
+                if isinstance(rows_data, list):
+                    for row in rows_data:
+                        if isinstance(row, list):
+                            cleaned_rows.append([str(cell) if cell is not None else "" for cell in row])
+                        else:
+                            cleaned_rows.append([str(row)])
+                
+                normalized_tables.append({
+                    "table_id": f"{page_id}_tbl{idx}",
+                    "table_index": idx,
+                    "rows": cleaned_rows
+                })
+
+        # NameError 대비 내부 리스트를 사전에 객체화
+        pages_list = [
+            {
+                "page_id": page_id,
+                "page_number": page_number,
+                "subtitle": first_page.get("subtitle") or doc_title_val,
+                "text": first_page.get("text") or "",
+                "tables": normalized_tables,
+            }
+        ]
+
+        # 정형화된 공통 순수 딕셔너리 데이터 구조 구축
         structured_document = {
             "document_uuid": document_uuid,
-            "corp_name": ai_data.get("corp_name") or metadata.get("company") or "null",
-            "report_name": ai_data.get("report_name") or metadata.get("document_title") or image_path.stem,
+            "sector": sector_val,
+            "document_date": doc_date_val,
+            "document_type": doc_type_val,
+            "company": company_val,
+            "document_title": doc_title_val,
             "created_at": created_at,
             "file_type": file_type,
-            "processing_engine": [""], 
-            "pages_count": len(structured_document["pages"]),
-            "pages": [
-                {
-                    "page_id": page_id,
-                    "page_number": page_number,
-                    "subtitle": ai_data.get("pages", [{}])[0].get("subtitle") or ai_data.get("report_name") or image_path.stem,
-                    "text": ai_data.get("pages", [{}])[0].get("text") or "",
-                    "tables": normalized_tables,
-                    "images": []
-                }
-            ]
+            "processing_engine": ["gemini-ocr"], 
+            "pages_count": len(pages_list),
+            "pages": pages_list,
+            "metadata": {
+                "source_file": str(image_path)
+            }
         }
         return structured_document
 
     def save_outputs(self, image_path: Path, ocr_text: str, json_data: dict) -> tuple[Path, Path]:
         """3단계: 요구사항에 맞게 파일명 지정 및 경로 상수를 사용하여 물리 저장"""
-        # 파일명 제어 규칙: 회사명_uuid.json (특수문자 안전 처리)
-        corp_name = str(json_data.get("corp_name", "unknown")).strip()
-        if corp_name.lower() == "null" or not corp_name:
-            corp_name = "unknown"
+
+        company_name = str(json_data.get("company", "unknown")).strip()
+        if company_name.lower() == "null" or not company_name:
+            company_name = "unknown"
             
-        safe_company = safe_filename(corp_name)
+        safe_company = safe_filename(company_name)
             
         file_base_name = f"{safe_company}_{json_data['document_uuid']}"
 
