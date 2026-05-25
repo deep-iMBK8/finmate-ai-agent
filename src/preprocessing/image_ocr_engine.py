@@ -8,7 +8,8 @@ from pathlib import Path
 from google import genai
 from google.genai import types
 
-from src.config.paths import (PROCESSED_JSON_DIR, PROCESSED_TXT_DIR)
+from src.config.paths import PROCESSED_JSON_DIR, PROCESSED_TXT_DIR
+
 
 class GeminiOCREngine:
     def __init__(self, project: str, location: str = "global"):

@@ -21,7 +21,7 @@ from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 
-from src.config.paths import PROCESSED_JSON_DIR, PROCESSED_IMAGE_DIR
+from src.config.paths import PROCESSED_IMAGE_DIR, PROCESSED_JSON_DIR
 
 # 환경변수 로드
 load_dotenv()

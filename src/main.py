@@ -1,12 +1,13 @@
 import os
 import shutil
 from pathlib import Path
-from fastapi import FastAPI, UploadFile, Form, File, HTTPException
-from dotenv import load_dotenv
 
-from src.config.paths import RAW_PDF_DIR, RAW_IMAGE_DIR
-from src.preprocessing.pdf_router import PDFRouter
+from dotenv import load_dotenv
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+
+from src.config.paths import RAW_IMAGE_DIR, RAW_PDF_DIR
 from src.preprocessing.image_ocr_engine import GeminiOCREngine
+from src.preprocessing.pdf_router import PDFRouter
 
 # 환경 변수 로드 (Gemini 클라이언트용)
 load_dotenv()

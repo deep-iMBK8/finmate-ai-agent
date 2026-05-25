@@ -3,7 +3,7 @@ import json
 import os
 import re
 
-from src.config.paths import PROCESSED_JSON_DIR, CHUNKS_DIR
+from src.config.paths import CHUNKS_DIR, PROCESSED_JSON_DIR
 
 
 def convert_table_to_markdown(table_data):
