@@ -16,10 +16,11 @@ from bs4 import BeautifulSoup
 from pdfminer.high_level import extract_text_to_fp
 from pdfminer.layout import LAParams
 
-from src.config.paths import PROCESSED_JSON_DIR
+from src.config.paths import PROCESSED_JSON_DIR, PROCESSED_TXT_DIR
 from src.utils.docs_helpers import clean_text, safe_filename
 
 os.makedirs(PROCESSED_JSON_DIR, exist_ok=True)
+os.makedirs(PROCESSED_TXT_DIR, exist_ok=True)
 
 
 # ==================================================
@@ -278,7 +279,7 @@ def extract_card_pdf(pdf_path: Path, metadata: dict = None) -> dict:
         
         # 순수 텍스트 평문 백업 파일 매핑
         txt_filename = f"{safe_company}_{document_uuid}.txt"
-        txt_path = PROCESSED_JSON_DIR / txt_filename
+        txt_path = PROCESSED_TXT_DIR / txt_filename
 
         # 파일 물리 쓰기 처리
         txt_path.write_text(full_text, encoding="utf-8")
