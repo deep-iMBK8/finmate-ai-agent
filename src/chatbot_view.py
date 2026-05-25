@@ -15,12 +15,6 @@ def init_chat_state():
         st.session_state.messages = []
 
 
-def render_chat_messages():
-    for msg in st.session_state.messages:
-        with st.chat_message(msg["role"]):
-            st.markdown(msg["content"])
-
-
 def build_context_from_parsed_data(parsed_data: dict) -> str:
     if not parsed_data:
         return ""
@@ -85,52 +79,46 @@ def ask_gemini(question: str, sector: str, parsed_data: dict | None = None) -> s
     text = getattr(response, "text", None)
     if not text:
         return "응답을 생성하지 못했습니다."
+
     return text.strip()
 
 
 def render_chatbot(sector: str):
     st.subheader("금융 문서 챗봇")
-
     init_chat_state()
-    render_chat_messages()
 
     parsed_data = st.session_state.get("last_parsed_data")
 
-    user_input = st.chat_input("예: 이 문서의 핵심 위험요인을 요약해줘")
+    # 위: 대화창
+    chat_box = st.container(height=520, border=True)
 
-    if user_input:
+    with chat_box:
+        if not st.session_state.messages:
+            st.info("문서를 업로드한 뒤 질문을 입력해보세요.")
+        else:
+            for msg in st.session_state.messages:
+                with st.chat_message(msg["role"]):
+                    st.markdown(msg["content"])
+
+    # 아래: 입력창
+    prompt = st.chat_input("예: 이 문서의 핵심 위험요인을 요약해줘")
+
+    if prompt:
         st.session_state.messages.append(
-            {
-                "role": "user",
-                "content": user_input,
-            }
+            {"role": "user", "content": prompt}
         )
 
-        with st.chat_message("user"):
-            st.markdown(user_input)
+        try:
+            answer = ask_gemini(
+                question=prompt,
+                sector=sector,
+                parsed_data=parsed_data,
+            )
+        except Exception as e:
+            answer = f"Gemini 호출 실패: {e}"
 
-        with st.chat_message("assistant"):
-            with st.spinner("Gemini 답변 생성 중입니다..."):
-                try:
-                    answer = ask_gemini(
-                        question=user_input,
-                        sector=sector,
-                        parsed_data=parsed_data,
-                    )
-                    st.markdown(answer)
+        st.session_state.messages.append(
+            {"role": "assistant", "content": answer}
+        )
 
-                    st.session_state.messages.append(
-                        {
-                            "role": "assistant",
-                            "content": answer,
-                        }
-                    )
-                except Exception as e:
-                    error_text = f"Gemini 호출 실패: {e}"
-                    st.error(error_text)
-                    st.session_state.messages.append(
-                        {
-                            "role": "assistant",
-                            "content": error_text,
-                        }
-                    )
+        st.rerun()
