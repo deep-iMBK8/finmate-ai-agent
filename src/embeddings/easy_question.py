@@ -5,6 +5,10 @@ from google.cloud import aiplatform
 from google.oauth2.credentials import Credentials
 from vertexai.language_models import TextEmbeddingInput, TextEmbeddingModel
 
+# src.config.paths에서 CHROMA_DIR 경로를 가져와서 사용
+from src.config.paths import CHROMA_DIR
+
+
 # 1. 환경 변수 및 GCP 프로젝트 주입
 load_dotenv()
 PROJECT_ID = os.getenv("PROJECT_ID")
@@ -22,7 +26,6 @@ aiplatform.init(project=PROJECT_ID, location=LOCATION, credentials=credentials)
 model = TextEmbeddingModel.from_pretrained("text-multilingual-embedding-002")
 
 # 3. 로컬 크로마 DB 연결 (적재했던 폴더 경로 지정)
-CHROMA_DIR = "./data/vectordb/financial_chroma"
 chroma_client = chromadb.PersistentClient(path=CHROMA_DIR)
 
 # 적재했던 크로마DB 데이터 불러오기

@@ -10,6 +10,9 @@ from google.oauth2.credentials import Credentials
 
 from vertexai.language_models import TextEmbeddingInput, TextEmbeddingModel
 
+# src.config.paths에서 CHUNKS_DIR, CHROMA_DIR 경로를 가져와서 사용
+from src.config.paths import CHUNKS_DIR, CHROMA_DIR
+
 # 1. 환경 변수 및 GCP 프로젝트 주입
 load_dotenv()
 PROJECT_ID = os.getenv("PROJECT_ID")
@@ -28,11 +31,7 @@ aiplatform.init(project=PROJECT_ID, location=LOCATION, credentials=credentials)
 print("구글 Vertex AI 금융/다국어 특화 임베딩 모델 로드 완료.")
 model = TextEmbeddingModel.from_pretrained("text-multilingual-embedding-002")
 
-# 2. 크로마 DB 설정
-# 크로마 db 저장경로 설정 및 청킹데이터 불러오는 경로 설정
-CHROMA_DIR = "./data/vectordb/financial_chroma"
-CHUNKS_DIR = "./data/chunks/chunking"
-
+# 2. 크로마 DB 저장 경로 설정
 chroma_client = chromadb.PersistentClient(path=CHROMA_DIR)
 
 #챗봇의 검색 정확도를 극대화하기 위해 코사인 유사도 설정
@@ -57,7 +56,7 @@ if not os.path.exists(CHUNKS_DIR):
 json_files = [f for f in os.listdir(CHUNKS_DIR) if f.endswith(".json")]
 print(f"{len(json_files)}개의 금융 청크 파일을 탐색했습니다.")
 
-BATCH_SIZE = 50 # 배치사이즈는 청크 데이터가 클수록 작게 조정(20000개 이상 반환 x) 25~30개
+BATCH_SIZE = 30 # 배치사이즈는 청크 데이터가 클수록 작게 조정(20000개 이상 반환 x) 25~30개
 
 for index, file_name in enumerate(json_files, 1):
     path = os.path.join(CHUNKS_DIR, file_name)
@@ -123,7 +122,7 @@ for index, file_name in enumerate(json_files, 1):
         for c in batch:
             meta_obj = c.get("metadata", {})
             meta = {
-                "document_uuid": str(meta_obj.get("document_uuid") or ""),
+                "document_uuid": str(meta_obj.get("document_uuid")),
                 "company": str(meta_obj.get("company") or "알수없음"), # 데이터에 지정된 회사명을 그대로 쓰되, 없으면 안전하게 '알수없음'
                 "document_type": str(meta_obj.get("document_type") or "알수없음"), # 특정 확장자(PDF 등) 오염 방지
                 "document_date": str(meta_obj.get("document_date") or ""),
