@@ -1,3 +1,6 @@
+# TODO:
+# 사용자 입력으로 연월(기간), 회사, 문서 종류 받아서 dart 서칭하는 식으로 추후 변경 예정
+
 import json
 import os
 import re
