@@ -87,20 +87,20 @@ class GeminiOCREngine:
               "subtitle": "페이지 소제목 또는 주요 헤더 (없으면 null)",
               "text": "표 영역을 제외하고 정제된 일반 본문 문장 중심 텍스트",
               "tables": [
-                {
+                {{
                   "table_index": 1,
                   "rows": [
                     ["헤더1", "헤더2"],
                     ["값1", "값2"]
                   ]
-                }
+                }}
               ],
               "images": [
-                {
+                {{
                     "image_index": 1, 
                     "src": "src", 
                     "alt": "이미지에 대한 설명"
-                }
+                }}
               ]
             }}
           ]
