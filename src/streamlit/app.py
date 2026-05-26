@@ -18,12 +18,13 @@ from state.session import init_session_state
 
 st.set_page_config(page_title="FinMate", layout="wide")
 st.title("FinMate")
+st.caption("당신 곁의 금융 메이트 -")
 
 # 세션 상태 초기화
 init_session_state()
 
 # 화면 레이아웃 분할
-left_col, right_col = st.columns([1, 1.6], gap="large")
+left_col, right_col = st.columns([1, 2], gap="large")
 
 with left_col:
     sector = render_sidebar()
