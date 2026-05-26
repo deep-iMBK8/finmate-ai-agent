@@ -125,10 +125,15 @@ def extract_insurance_pdf(pdf_path: Path, metadata: dict = None) -> dict:
                 image_infos = page.get_images(full=True) or []
 
                 for img_idx, img in enumerate(image_infos, start=1):
-                    xref = img[0]
+                    # 물리 이미지 저장 로직 구현 시 활용할 수 있도록 가상 경로 포맷 구성
+                    img_ext = img[1] if len(img) > 1 else "png"
+                    img_name = f"{document_uuid}_p{page_idx+1}_img{img_idx}.{img_ext}"
+                    
                     image_info = {
                         "image_id": f"{document_uuid}_p{page_idx+1}_img{img_idx}",
-                        "xref": xref,
+                        "image_index": img_idx,
+                        "src": f"data/processed/images/{img_name}", 
+                        "alt": "PDF 내 추출된 이미지 객체",
                     }
                     image_list.append(image_info)
 

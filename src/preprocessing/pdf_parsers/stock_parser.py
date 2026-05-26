@@ -48,7 +48,7 @@ def extract_tables_from_page(page, document_uuid: str, page_idx: int) -> list:
 
         table_list.append(
             {
-                "table_id": f"{document_uuid}_p{page_idx}_tbl{table_idx}",
+                "table_id": f"{document_uuid}_p{page_idx+1}_tbl{table_idx}",
                 "table_index": table_idx,
                 "rows": rows,
             }
