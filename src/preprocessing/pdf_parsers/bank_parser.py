@@ -37,7 +37,7 @@ def extract_and_save_images(pdf_path: Path, doc_uuid: str, out_dir: Path) -> dic
     doc = fitz.open(pdf_path)
     img_map = {}
 
-    for p_idx in range(len(doc)):
+    for p_idx in range(len(doc), start=1):
         page = doc[p_idx]
         img_list = page.get_images(full=True)
         page_imgs = []
@@ -48,7 +48,7 @@ def extract_and_save_images(pdf_path: Path, doc_uuid: str, out_dir: Path) -> dic
             ext = base_img["ext"]
             img_bytes = base_img["image"]
 
-            f_name = f"{doc_uuid}_p{p_idx + 1}_img{i_idx}.{ext}"
+            f_name = f"{doc_uuid}_p{p_idx}_img{i_idx}.{ext}"
             f_path = os.path.join(out_dir, f_name)
 
             with open(f_path, "wb") as f:
@@ -56,7 +56,7 @@ def extract_and_save_images(pdf_path: Path, doc_uuid: str, out_dir: Path) -> dic
 
             page_imgs.append(
                 {
-                    "image_id": f"{doc_uuid}_p{p_idx + 1}_img{i_idx}",
+                    "image_id": f"{doc_uuid}_p{p_idx}_img{i_idx}",
                     "src": f"data/processed/images/{f_name}",
                     "alt": "PDF 추출 이미지",
                 }
@@ -101,13 +101,13 @@ def extract_bank_pdf(pdf_path: Path, metadata: dict = None) -> dict:
     8. "file_type": "pdf"
     9. "processing_engine": "gemini-3.1-flash-lite"
     10. "pages": 페이지별 배열
-        - "page_id": "{document_uuid}_p" 뒤에 번호
-        - "page_number": 현재 페이지 번호(정수)
+        - "page_id": "{document_uuid}_p" 뒤에 번호 (예: {document_uuid}_p1)
+        - "page_number": 현재 페이지 번호(정수, 1부터 시작)
         - "subtitle": 상단 소제목 (없으면 "")
         - "text": 표와 이미지를 제외한 모든 텍스트 원문
         - "tables": 표 데이터 배열
-            - "table_id": "page_id_tbl" 뒤에 표 순번
-            - "table_index": 페이지 내 표 순번(정수)
+            - "table_id": "{document_uuid}_p{{page_number}}_tbl{{table_index}}"
+            - "table_index": 페이지 내 표 순번 (정수)
             - "rows": 표 내용을 2차원 배열로 분리
 
     [반드시 준수해야 할 JSON 스키마 구조]
@@ -166,10 +166,10 @@ def extract_bank_pdf(pdf_path: Path, metadata: dict = None) -> dict:
             break
 
         except json.JSONDecodeError:
-            print(f"  [{filename}] 오류: 유효한 JSON을 반환하지 않았습니다.")
+            print(f"[{filename}] 오류: 유효한 JSON을 반환하지 않았습니다.")
             break
         except Exception as e:
-            print(f"  [{filename}] 에러 발생 (시도 {attempt+1}/{max_retries}): {e}")
+            print(f"[{filename}] 에러 발생 (시도 {attempt+1}/{max_retries}): {e}")
             try:
                 if 'pdf_file' in locals():
                     client.files.delete(name=pdf_file.name)
@@ -182,9 +182,9 @@ def extract_bank_pdf(pdf_path: Path, metadata: dict = None) -> dict:
     if os.path.exists(temp_filename):
         os.remove(temp_filename)
 
-    # 추출 실패 시 빈 딕셔너리 반환 (기존 continue 버그 수정)
+    # 추출 실패 시 빈 딕셔너리 반환
     if not document_data:
-        print(f"  [{filename}] 데이터 추출에 실패하여 처리를 중단합니다.")
+        print(f"[{filename}] 데이터 추출에 실패하여 처리를 중단합니다.")
         return {}
 
     # 물리 이미지 추출 실행 및 맵핑

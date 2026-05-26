@@ -89,7 +89,7 @@ def extract_insurance_pdf(pdf_path: Path, metadata: dict = None) -> dict:
         with pdfplumber.open(pdf_path) as plumber_pdf:
             processing_engine.append("pdfplumber")
 
-            for page_idx in range(pages_count):
+            for page_idx in range(pages_count, start=1):
                 page = doc[page_idx]
                 plumber_page = plumber_pdf.pages[page_idx]
 
@@ -104,7 +104,7 @@ def extract_insurance_pdf(pdf_path: Path, metadata: dict = None) -> dict:
                 table_list = []
                 extracted_tables = plumber_page.extract_tables() or []
 
-                for table_idx, table in enumerate(extracted_tables, start=1):
+                for table_idx, table in enumerate(extracted_tables):
                     table_rows = []
                     for row in table:
                         # 결측치(None) 방어 코드 및 문자열 공백 좌우 정제
@@ -115,7 +115,7 @@ def extract_insurance_pdf(pdf_path: Path, metadata: dict = None) -> dict:
                             table_rows.append(cleaned_row)
 
                     table_list.append({
-                        "table_id": f"{document_uuid}_p{page_idx+1}_tbl{table_idx}",
+                        "table_id": f"{document_uuid}_p{page_idx}_tbl{table_idx}",
                         "table_index": table_idx,
                         "rows": table_rows,
                     })
@@ -124,11 +124,16 @@ def extract_insurance_pdf(pdf_path: Path, metadata: dict = None) -> dict:
                 image_list = []
                 image_infos = page.get_images(full=True) or []
 
-                for img_idx, img in enumerate(image_infos, start=1):
-                    xref = img[0]
+                for img_idx, img in enumerate(image_infos):
+                    # 물리 이미지 저장 로직 구현 시 활용할 수 있도록 가상 경로 포맷 구성
+                    img_ext = img[1] if len(img) > 1 else "png"
+                    img_name = f"{document_uuid}_p{page_idx+1}_img{img_idx}.{img_ext}"
+                    
                     image_info = {
-                        "image_id": f"{document_uuid}_p{page_idx+1}_img{img_idx}",
-                        "xref": xref,
+                        "image_id": f"{document_uuid}_p{page_idx}_img{img_idx}",
+                        "image_index": img_idx,
+                        "src": f"data/processed/images/{img_name}", 
+                        "alt": "PDF 내 추출된 이미지 객체",
                     }
                     image_list.append(image_info)
 
