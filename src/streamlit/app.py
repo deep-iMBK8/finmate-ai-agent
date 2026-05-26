@@ -17,8 +17,8 @@ from components.file_uploader import render_file_uploader
 from components.sidebar import render_sidebar
 from state.session import init_session_state
 
-st.set_page_config(page_title="금융 문서 챗봇", layout="wide")
-st.title("금융 문서 통합 파싱 & AI 챗봇")
+st.set_page_config(page_title="FinMate", layout="wide")
+st.title("FinMate")
 
 init_session_state()
 
