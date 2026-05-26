@@ -8,6 +8,8 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from src.config.paths import RAW_IMAGE_DIR, RAW_PDF_DIR
 from src.preprocessing.image_ocr_engine import GeminiOCREngine
 from src.preprocessing.pdf_router import PDFRouter
+from src.rag.chunking import process_document
+from src.rag.embedding import embed_and_store_chunks
 
 # 환경 변수 로드 (Gemini 클라이언트용)
 load_dotenv()
@@ -32,7 +34,7 @@ SECTOR_MAP = {
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 
-# pdf 인풋 파싱 API
+# pdf 및 이미지 인풋 파싱 통합 API
 @app.post("/api/parse")
 async def parse_pdf_endpoint(
     sector: str = Form(...),          # "은행", "카드", "보험", "투자"
@@ -49,6 +51,8 @@ async def parse_pdf_endpoint(
     file_suffix = Path(filename).suffix.lower()
 
     try:
+        result_json = None
+
         # PDF 문서 파싱 파이프라인 -----------------------
         if file_suffix == ".pdf":
             # 로컬에 파일 저장
@@ -84,12 +88,31 @@ async def parse_pdf_endpoint(
         else:
             raise HTTPException(status_code=400, detail=f"지원하지 않는 파일 형식입니다 ({file_suffix}).")
             
-        return {"status": "success", "data": result_json}
+        # 청킹 -> 인덱싱(임베딩/벡터 DB 저장) -----------------------
+        if not result_json:
+            raise HTTPException(status_code=500, detail="문서 파싱 결과 가공에 실패했습니다.")
+
+        # # 1) 데이터 청킹
+        chunks = process_document(result_json)
+        
+        # # 2) 크로마 벡터 DB 적재
+        stored_count = 0
+        if chunks:
+            stored_count = embed_and_store_chunks(chunks)
+            
+        return {
+            "status": "success",
+            "message": f"파싱, 청킹 및 벡터화 완료",
+            "pipeline_summary": {
+                "document_uuid": result_json.get("document_uuid"),
+                "total_chunks": len(chunks),
+                "uploaded_chunks_count": stored_count
+            }
+        }
     
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
 if __name__ == "__main__":
-    # 포트 포워딩
     import uvicorn
-    uvicorn.run("src.main:app", host="127.0.0.1", port=8080, reload=True)
+    uvicorn.run("main:app", host="127.0.0.1", port=8080, reload=True)
