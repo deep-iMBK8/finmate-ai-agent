@@ -89,8 +89,7 @@ def extract_insurance_pdf(pdf_path: Path, metadata: dict = None) -> dict:
         with pdfplumber.open(pdf_path) as plumber_pdf:
             processing_engine.append("pdfplumber")
 
-            for page_idx in range(pages_count, start=1):
-                page = doc[page_idx]
+            for page_idx, page in enumerate(doc, start=1):
                 plumber_page = plumber_pdf.pages[page_idx]
 
                 # 페이지 소제목 (일반 PDF 텍스트 레이아웃 특성상 null 처리)
@@ -116,7 +115,6 @@ def extract_insurance_pdf(pdf_path: Path, metadata: dict = None) -> dict:
 
                     table_list.append({
                         "table_id": f"{document_uuid}_p{page_idx}_tbl{table_idx}",
-                        "table_index": table_idx,
                         "rows": table_rows,
                     })
 
@@ -131,7 +129,6 @@ def extract_insurance_pdf(pdf_path: Path, metadata: dict = None) -> dict:
                     
                     image_info = {
                         "image_id": f"{document_uuid}_p{page_idx}_img{img_idx}",
-                        "image_index": img_idx,
                         "src": f"data/processed/images/{img_name}", 
                         "alt": "PDF 내 추출된 이미지 객체",
                     }

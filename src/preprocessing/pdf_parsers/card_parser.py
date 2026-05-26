@@ -54,7 +54,6 @@ def extract_html_tables(soup: BeautifulSoup, document_uuid: str, page_number: in
             tables.append(
                 {
                     "table_id": f"{document_uuid}_p{page_number}_tbl{table_index}",
-                    "table_index": table_index,
                     "rows": rows,
                 }
             )
