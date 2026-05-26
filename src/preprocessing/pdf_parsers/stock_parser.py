@@ -39,7 +39,7 @@ def extract_tables_from_page(page, document_uuid: str, page_idx: int) -> list:
     table_list = []
     extracted_tables = page.extract_tables() or []
 
-    for table_idx, table in enumerate(extracted_tables, start=1):
+    for table_idx, table in enumerate(extracted_tables):
         rows = []
         for row in table:
             cleaned_row = [clean_text(cell, keep_newlines=False) for cell in row]
@@ -48,7 +48,7 @@ def extract_tables_from_page(page, document_uuid: str, page_idx: int) -> list:
 
         table_list.append(
             {
-                "table_id": f"{document_uuid}_p{page_idx+1}_tbl{table_idx}",
+                "table_id": f"{document_uuid}_p{page_idx}_tbl{table_idx}",
                 "table_index": table_idx,
                 "rows": rows,
             }

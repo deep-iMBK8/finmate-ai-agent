@@ -37,7 +37,7 @@ def extract_and_save_images(pdf_path: Path, doc_uuid: str, out_dir: Path) -> dic
     doc = fitz.open(pdf_path)
     img_map = {}
 
-    for p_idx in range(len(doc)):
+    for p_idx in range(len(doc), start=1):
         page = doc[p_idx]
         img_list = page.get_images(full=True)
         page_imgs = []
@@ -48,7 +48,7 @@ def extract_and_save_images(pdf_path: Path, doc_uuid: str, out_dir: Path) -> dic
             ext = base_img["ext"]
             img_bytes = base_img["image"]
 
-            f_name = f"{doc_uuid}_p{p_idx + 1}_img{i_idx}.{ext}"
+            f_name = f"{doc_uuid}_p{p_idx}_img{i_idx}.{ext}"
             f_path = os.path.join(out_dir, f_name)
 
             with open(f_path, "wb") as f:
@@ -56,7 +56,7 @@ def extract_and_save_images(pdf_path: Path, doc_uuid: str, out_dir: Path) -> dic
 
             page_imgs.append(
                 {
-                    "image_id": f"{doc_uuid}_p{p_idx + 1}_img{i_idx}",
+                    "image_id": f"{doc_uuid}_p{p_idx}_img{i_idx}",
                     "src": f"data/processed/images/{f_name}",
                     "alt": "PDF 추출 이미지",
                 }
@@ -107,7 +107,7 @@ def extract_bank_pdf(pdf_path: Path, metadata: dict = None) -> dict:
         - "text": 표와 이미지를 제외한 모든 텍스트 원문
         - "tables": 표 데이터 배열
             - "table_id": "{document_uuid}_p{{page_number}}_tbl{{table_index}}"
-            - "table_index": 페이지 내 표 순번 (정수, 1부터 시작)
+            - "table_index": 페이지 내 표 순번 (정수)
             - "rows": 표 내용을 2차원 배열로 분리
 
     [반드시 준수해야 할 JSON 스키마 구조]
