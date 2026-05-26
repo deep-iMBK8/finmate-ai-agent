@@ -2,7 +2,34 @@ import requests
 
 import streamlit as st
 
-st.title("금융 문서 통합 파싱 가이드 UI")
+from pathlib import Path
+import sys
+
+from components.chat_box import render_chat_box
+from components.file_uploader import render_file_uploader
+from components.sidebar import render_sidebar
+from state.session import init_session_state
+
+
+STREAMLIT_DIR = Path(__file__).resolve().parent
+SRC_DIR = STREAMLIT_DIR.parent
+for path in (STREAMLIT_DIR, SRC_DIR):
+    if str(path) not in sys.path:
+        sys.path.insert(0, str(path))
+
+st.set_page_config(page_title="금융 문서 챗봇", layout="wide")
+st.title("금융 문서 통합 파싱 & AI 챗봇")
+
+init_session_state()
+
+left_col, right_col = st.columns([1, 1.6], gap="large")
+
+with left_col:
+    sector = render_sidebar()
+    render_file_uploader(sector)
+
+with right_col:
+    render_chat_box(sector)
 
 # 1. UI 컨트롤러 배치
 sector = st.selectbox("업권을 선택하세요", ["은행", "카드", "보험", "투자"])
