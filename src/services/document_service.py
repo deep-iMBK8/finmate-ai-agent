@@ -13,18 +13,28 @@ def parse_uploaded_document(sector: str, uploaded_file) -> dict:
     }
     data = {"sector": sector}
 
-    response = requests.post(
-        f"{BACKEND_URL}/api/parse",
-        files=files,
-        data=data,
-        timeout=300,
-    )
+    try:
+        # FastAPI 엔드포인트 호출 (상수 URL 및 timeout 300초 유지)
+        response = requests.post(
+            f"{BACKEND_URL}/api/parse",
+            files=files,
+            data=data,
+            timeout=300,
+        )
 
-    if response.status_code != 200:
-        raise RuntimeError(f"백엔드 오류: {response.status_code}")
+        if response.status_code == 200:
+            res_data = response.json()
+            if res_data.get("status") == "success":
+                # 성공 시 데이터 딕셔너리 반환
+                return res_data.get("data", {})
+            else:
+                raise Exception(res_data.get("message", "백엔드 처리 실패"))
+        else:
+            raise Exception(
+                f"서버 응답 에러 ({response.status_code}): {response.reason}"
+            )
 
-    payload = response.json()
-    if payload.get("status") != "success":
-        raise RuntimeError(payload.get("message") or "문서 파싱에 실패했습니다.")
-
-    return payload.get("data", {})
+    except requests.exceptions.ConnectionError:
+        raise Exception(
+            "FastAPI 서버가 꺼져있거나 연결할 수 없습니다. 포트(8080)를 확인하세요."
+        )
