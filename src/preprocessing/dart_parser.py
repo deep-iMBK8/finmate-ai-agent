@@ -167,7 +167,6 @@ for report in report_list:
                 table_list.append(
                     {
                         "table_id": f"{document_uuid}_p{page_idx}_tbl{table_idx}",
-                        "table_index": table_idx,
                         "rows": table_rows,
                     }
                 )
@@ -180,7 +179,6 @@ for report in report_list:
             for img_idx, img in enumerate(soup.find_all("img"), start=1):
                 image_info = {
                     "image_id": f"{document_uuid}_p{page_idx}_img{img_idx}",
-                    "image_index": img_idx,
                     "src": img.get("src", ""),
                     "alt": img.get("alt", ""),
                 }

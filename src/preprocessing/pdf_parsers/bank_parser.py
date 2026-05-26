@@ -37,8 +37,7 @@ def extract_and_save_images(pdf_path: Path, doc_uuid: str, out_dir: Path) -> dic
     doc = fitz.open(pdf_path)
     img_map = {}
 
-    for p_idx in range(len(doc), start=1):
-        page = doc[p_idx]
+    for p_idx, page in enumerate(doc, start=1):
         img_list = page.get_images(full=True)
         page_imgs = []
 
@@ -105,9 +104,8 @@ def extract_bank_pdf(pdf_path: Path, metadata: dict = None) -> dict:
         - "page_number": 현재 페이지 번호(정수, 1부터 시작)
         - "subtitle": 상단 소제목 (없으면 "")
         - "text": 표와 이미지를 제외한 모든 텍스트 원문
-        - "tables": 표 데이터 배열
+        - "tables": 표 데이터 배열, table_index는 0부터 시작하는 정수
             - "table_id": "{document_uuid}_p{{page_number}}_tbl{{table_index}}"
-            - "table_index": 페이지 내 표 순번 (정수)
             - "rows": 표 내용을 2차원 배열로 분리
 
     [반드시 준수해야 할 JSON 스키마 구조]
