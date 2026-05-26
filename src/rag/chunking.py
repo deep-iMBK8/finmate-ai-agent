@@ -221,6 +221,7 @@ def batch_process_json_files(
         custom_config = {}
 
     os.makedirs(output_dir, exist_ok=True)
+
     json_files = glob.glob(os.path.join(input_dir, "*.json"))
     if not json_files:
         print(f"'{input_dir}' 폴더에 처리할 JSON 파일이 없습니다.")
@@ -259,7 +260,10 @@ if __name__ == "__main__":
     current_dir = os.path.dirname(os.path.abspath(__file__)) 
     project_root = os.path.dirname(os.path.dirname(current_dir)) 
     
+    # 루트 아래의 data 폴더로 경로 설정
     INPUT_JSON_DIR = os.path.join(project_root, "data", "processed", "json")
     OUTPUT_CHUNKS_DIR = os.path.join(project_root, "data", "processed", "chunking")
     
+    print(f"입력 데이터 폴더: {INPUT_JSON_DIR}")
+
     batch_process_json_files(INPUT_JSON_DIR, OUTPUT_CHUNKS_DIR)
