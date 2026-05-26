@@ -107,7 +107,7 @@ def extract_insurance_pdf(pdf_path: Path, metadata: dict = None) -> dict:
                 table_list = []
                 extracted_tables = plumber_page.extract_tables() or []
 
-                for table_idx, table in enumerate(extracted_tables, start=1):
+                for table_idx, table in enumerate(extracted_tables):
                     table_rows = []
                     for row in table:
                         # 결측치(None) 방어 코드 및 문자열 공백 좌우 정제
