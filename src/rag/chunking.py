@@ -1,7 +1,6 @@
 import glob
 import json
 import os
-import re
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
@@ -11,7 +10,6 @@ from src.utils.chunk_helpers import (
     is_valid_table, 
     convert_table_to_markdown
 )
-from src.config.paths import CHUNKS_DIR, PROCESSED_JSON_DIR
 
 # RecursiveCharacterTextSplitter는 앞 구분자부터 시도하고,
 # 청크가 chunk_size를 초과하면 다음 구분자로 내려가며 재귀 분할
@@ -40,7 +38,6 @@ def get_dynamic_chunk_settings(json_data: dict, custom_config: dict | None = Non
 
     doc_type = (json_data.get("document_type") or "").lower()
     company  = (json_data.get("company")        or "").lower()
-    # pages_count는 process_document에서 실제 len(pages)로 보정된 값이 전달됨
     pages_count = json_data.get("pages_count", 1)
 
     # 2. 문서 유형·분량별 규칙
@@ -62,10 +59,7 @@ def get_dynamic_chunk_settings(json_data: dict, custom_config: dict | None = Non
 
 
 def build_splitter(chunk_size: int, overlap: int) -> RecursiveCharacterTextSplitter:
-    """
-    [핵심 변경] 동적으로 계산된 설정값으로 RecursiveCharacterTextSplitter를 생성합니다.
-    문서마다 호출되어 각 문서에 최적화된 splitter 인스턴스를 반환합니다.
-    """
+    """동적으로 계산된 설정값으로 RecursiveCharacterTextSplitter를 생성합니다."""
     return RecursiveCharacterTextSplitter(
         chunk_size=chunk_size,
         chunk_overlap=overlap,
@@ -76,28 +70,21 @@ def build_splitter(chunk_size: int, overlap: int) -> RecursiveCharacterTextSplit
     )
 
 
-def _make_chunk(content: str, doc_uuid: str, doc_type: str, company: str,
-                doc_date: str, chunk_type: str, page_num: int) -> dict:
-    """반복되는 청크 딕셔너리 생성을 단일 함수로 관리합니다."""
+def _make_chunk(content: str, base_meta: dict, chunk_type: str, page_num: int) -> dict:
+    """문서 공통 메타데이터(base_meta)에 청크 고유 정보를 추가하여 반환합니다."""
+    # base_meta가 다른 청크에 의해 변경되지 않도록 복사(copy)해서 사용합니다.
+    chunk_meta = base_meta.copy()
+    chunk_meta["chunk_type"] = chunk_type
+    chunk_meta["page_number"] = page_num
+
     return {
-        "page_content": content,
-        "metadata": {
-            "document_uuid": doc_uuid,
-            "document_type": doc_type,
-            "company": company,
-            "document_date": doc_date,
-            "chunk_type": chunk_type,
-            "page_number": page_num,
-        },
+        "chunk": content,
+        "metadata": chunk_meta
     }
 
 
-def _process_page(page: dict, doc_meta: tuple, splitter: RecursiveCharacterTextSplitter) -> list[dict]:
-    """
-    페이지 하나에서 텍스트 청크와 테이블 청크를 모두 추출합니다.
-    1페이지·다중 페이지 분기 없이 동일한 로직을 공유합니다.
-    """
-    doc_uuid, doc_type, company, doc_date = doc_meta
+def _process_page(page: dict, base_meta: dict, splitter: RecursiveCharacterTextSplitter) -> list[dict]:
+    """페이지 하나에서 텍스트 청크와 테이블 청크를 모두 추출합니다."""
     page_num = page.get("page_number", 1)
     chunks = []
 
@@ -115,7 +102,7 @@ def _process_page(page: dict, doc_meta: tuple, splitter: RecursiveCharacterTextS
     if full_page_text:
         # split_text()로 RecursiveCharacterTextSplitter 호출
         for tc in splitter.split_text(full_page_text):
-            chunks.append(_make_chunk(tc, doc_uuid, doc_type, company, doc_date, "text", page_num))
+            chunks.append(_make_chunk(tc, base_meta, "text", page_num))
 
     # 테이블 처리
     for tbl in page.get("tables", []):
@@ -123,70 +110,107 @@ def _process_page(page: dict, doc_meta: tuple, splitter: RecursiveCharacterTextS
             continue
         md_table = convert_table_to_markdown(tbl)
         if md_table:
-            chunks.append(_make_chunk(md_table, doc_uuid, doc_type, company, doc_date, "table", page_num))
+            chunks.append(_make_chunk(md_table, base_meta, "table", page_num))
 
     return chunks
+
+
+# ==================================================
+# [신규 추가] 값이 없거나 null 문자열일 때 빈 문자열("")로 안전하게 바꿔주는 헬퍼 함수
+# ==================================================
+def _safe_str(value) -> str:
+    """DB 에러를 방지하기 위해 null이나 None 값을 빈 문자열로 반환합니다."""
+    if value is None or str(value).strip().lower() == "null":
+        return ""
+    return str(value)
+
 
 def process_document(json_data: dict, custom_config: dict | None = None) -> list[dict]:
     chunks = []
 
-    doc_uuid    = json_data.get("document_uuid", "Unknown_UUID")
-    company     = json_data.get("company",        "Unknown")
-    doc_type    = json_data.get("document_type",  "Unknown")
-    doc_date    = json_data.get("document_date",  "Unknown")
-    pages       = json_data.get("pages",          [])
+    # 1. 절대 타협 불가 키 (고유 식별자가 없으면 DB 매핑/업데이트 불가능)
+    doc_uuid = json_data.get("document_uuid")
+    if not doc_uuid:
+        print("  [경고] document_uuid가 누락된 문서입니다. 건너뜁니다.")
+        return chunks
 
+    pages = json_data.get("pages", [])
     if not pages:
         return chunks
 
-    doc_meta = (doc_uuid, doc_type, company, doc_date)
-
-    # pages_count를 메타데이터가 아닌 실제 pages 리스트 길이로 확정
     actual_pages_count = len(pages)
-    json_data_corrected = {**json_data, "pages_count": actual_pages_count}
 
-    chunk_size, overlap = get_dynamic_chunk_settings(json_data_corrected, custom_config)
+    # 2. 메타데이터 안전망 처리 (_safe_str 적용)
+    # 누락되었거나 null인 값들은 모두 빈 문자열("")로 치환되어 저장됩니다.
+    base_meta = {
+        "document_uuid": doc_uuid,
+        "sector": _safe_str(json_data.get("sector")),
+        "document_date": _safe_str(json_data.get("document_date")),
+        "document_type": _safe_str(json_data.get("document_type")),
+        "company": _safe_str(json_data.get("company")),
+        "document_title": _safe_str(json_data.get("document_title")),
+        "created_at": _safe_str(json_data.get("created_at")),
+        "file_type": _safe_str(json_data.get("file_type")),
+        "processing_engine": _safe_str(json_data.get("processing_engine")),
+        "pages_count": actual_pages_count
+    }
+
+    # base_meta가 json_data_corrected 역할을 완벽히 대체하므로 바로 전달
+    chunk_size, overlap = get_dynamic_chunk_settings(base_meta, custom_config)
     print(f"  -> 적용된 설정: chunk_size={chunk_size}, overlap={overlap}")
 
-    # 문서마다 최적화된 splitter 인스턴스 생성
     splitter = build_splitter(chunk_size, overlap)
 
-    # 1페이지 단일 청크 처리
+    # 1페이지 단일 청크 처리 로직
     if actual_pages_count == 1:
-        page    = pages[0]
+        page = pages[0]
         page_num = page.get("page_number", 1)
 
         content_parts = []
-        subtitle    = clean_noise(page.get("subtitle", ""))
-        raw_text    = clean_noise(page.get("text", ""))
+        subtitle = clean_noise(page.get("subtitle", ""))
+        raw_text = clean_noise(page.get("text", ""))
         hierarchical = restore_hierarchy(raw_text)
 
         if subtitle:
             content_parts.append(f"## {subtitle}")
         if hierarchical:
             content_parts.append(hierarchical)
+            
         for tbl in page.get("tables", []):
             if is_valid_table(tbl):
                 content_parts.append(convert_table_to_markdown(tbl))
 
         full_content = "\n\n".join(content_parts)
 
-        # 빈 문서 방어 + chunk_size 이하면 단일 청크로 저장
+        # 내용이 적을 경우 통째로 하나의 문서로 반환
         if full_content and len(full_content) <= chunk_size * 1.5:
-            chunks.append(
-                _make_chunk(full_content, doc_uuid, doc_type, company, doc_date, "short_document", page_num)
-            )
-            return chunks
+            chunks.append(_make_chunk(full_content, base_meta, "short_document", page_num))
+        else:
+            # 길면 일반 페이지 처리로 넘김
+            chunks.extend(_process_page(page, base_meta, splitter))
 
-        # 내용이 길면 _process_page로 동일하게 분할 처리
-        chunks.extend(_process_page(page, doc_meta, splitter))
-        return chunks
+    else:
+        # 다중 페이지 문서 처리
+        for page in pages:
+            chunks.extend(_process_page(page, base_meta, splitter))
 
-    # 다중 페이지 문서 처리
-    for page in pages:
-        chunks.extend(_process_page(page, doc_meta, splitter))
+    # ==================================================
+    # 1페이지든 다중 페이지든 마지막에 일괄적으로 ID를 부여합니다.
+    # "chunk_id"가 가장 최상단에 위치하도록 재조립합니다.
+    # ==================================================
+    for index, chunk in enumerate(chunks, start=1):
+        chunk_id_val = f"{base_meta['document_uuid']}_chunk{index}"
+        
+        # 새로운 딕셔너리를 만들어 "chunk_id"를 가장 먼저 넣습니다.
+        reordered_chunk = {"chunk_id": chunk_id_val}
+        # 그 뒤에 기존 내용("chunk", "metadata")을 합칩니다.
+        reordered_chunk.update(chunk)
+        
+        # 완성된 딕셔너리로 원본 리스트의 요소를 교체합니다.
+        chunks[index-1] = reordered_chunk
 
     return chunks
+
 
 def batch_process_json_files(
     input_dir: str,
@@ -194,10 +218,10 @@ def batch_process_json_files(
     custom_config: dict | None = None,  
 ) -> None:
     if custom_config is None:
-        custom_config = CUSTOM_CHUNK_CONFIG = {}
+        custom_config = {}
 
     os.makedirs(output_dir, exist_ok=True)
-
+    
     json_files = glob.glob(os.path.join(input_dir, "*.json"))
     if not json_files:
         print(f"'{input_dir}' 폴더에 처리할 JSON 파일이 없습니다.")
@@ -235,7 +259,6 @@ def batch_process_json_files(
 
 
 if __name__ == "__main__":
-   
     current_dir = os.path.dirname(os.path.abspath(__file__)) 
     project_root = os.path.dirname(os.path.dirname(current_dir)) 
     
