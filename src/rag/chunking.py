@@ -221,14 +221,13 @@ def batch_process_json_files(
         custom_config = {}
 
     os.makedirs(output_dir, exist_ok=True)
-    
+
     json_files = glob.glob(os.path.join(input_dir, "*.json"))
     if not json_files:
         print(f"'{input_dir}' 폴더에 처리할 JSON 파일이 없습니다.")
         return
 
     print(f"총 {len(json_files)}개의 JSON 파일을 찾았습니다. 청킹 작업을 시작합니다...\n")
-    print("-" * 50)
 
     for file_path in json_files:
         file_name = os.path.basename(file_path)
@@ -243,7 +242,7 @@ def batch_process_json_files(
                 print(f"  [경고] {file_name}에서 추출할 데이터가 없습니다. 건너뜁니다.")
                 continue
 
-            base_name        = os.path.splitext(file_name)[0]
+            base_name = os.path.splitext(file_name)[0]
             output_file_path = os.path.join(output_dir, f"{base_name}_chunked.json")
 
             with open(output_file_path, "w", encoding="utf-8") as f:
@@ -254,7 +253,6 @@ def batch_process_json_files(
         except Exception as e:
             print(f"  [에러] {file_name} 처리 중 문제 발생: {e}\n")
 
-    print("-" * 50)
     print(f"작업 완료! 결과물 확인 경로: {output_dir}")
 
 
@@ -267,5 +265,5 @@ if __name__ == "__main__":
     OUTPUT_CHUNKS_DIR = os.path.join(project_root, "data", "processed", "chunking")
     
     print(f"입력 데이터 폴더: {INPUT_JSON_DIR}")
-    
+
     batch_process_json_files(INPUT_JSON_DIR, OUTPUT_CHUNKS_DIR)
