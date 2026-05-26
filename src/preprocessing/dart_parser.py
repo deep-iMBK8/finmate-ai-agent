@@ -167,7 +167,6 @@ for report in report_list:
                 table_list.append(
                     {
                         "table_id": f"{document_uuid}_p{page_idx}_tbl{table_idx}",
-                        "table_index": table_idx,
                         "rows": table_rows,
                     }
                 )

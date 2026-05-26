@@ -89,9 +89,12 @@ def extract_insurance_pdf(pdf_path: Path, metadata: dict = None) -> dict:
         with pdfplumber.open(pdf_path) as plumber_pdf:
             processing_engine.append("pdfplumber")
 
-            for page_idx in range(pages_count):
-                page = doc[page_idx]
+            # ※ pdfplumber는 인덱스는 무조건 0부터 
+            for page_idx, page in enumerate(doc):
                 plumber_page = plumber_pdf.pages[page_idx]
+
+                # 실제 페이지 넘버는 1부터 시작하는 게 맞으므로 page_num 설정해줌
+                page_num = page_idx + 1
 
                 # 페이지 소제목 (일반 PDF 텍스트 레이아웃 특성상 null 처리)
                 sub_title = ""
@@ -104,7 +107,7 @@ def extract_insurance_pdf(pdf_path: Path, metadata: dict = None) -> dict:
                 table_list = []
                 extracted_tables = plumber_page.extract_tables() or []
 
-                for table_idx, table in enumerate(extracted_tables, start=1):
+                for table_idx, table in enumerate(extracted_tables):
                     table_rows = []
                     for row in table:
                         # 결측치(None) 방어 코드 및 문자열 공백 좌우 정제
@@ -115,8 +118,7 @@ def extract_insurance_pdf(pdf_path: Path, metadata: dict = None) -> dict:
                             table_rows.append(cleaned_row)
 
                     table_list.append({
-                        "table_id": f"{document_uuid}_p{page_idx+1}_tbl{table_idx}",
-                        "table_index": table_idx,
+                        "table_id": f"{document_uuid}_p{page_num}_tbl{table_idx}",
                         "rows": table_rows,
                     })
 
@@ -125,17 +127,21 @@ def extract_insurance_pdf(pdf_path: Path, metadata: dict = None) -> dict:
                 image_infos = page.get_images(full=True) or []
 
                 for img_idx, img in enumerate(image_infos, start=1):
-                    xref = img[0]
+                    # 물리 이미지 저장 로직 구현 시 활용할 수 있도록 가상 경로 포맷 구성
+                    img_ext = img[1] if len(img) > 1 else "png"
+                    img_name = f"{document_uuid}_p{page_num}_img{img_idx}.{img_ext}"
+                    
                     image_info = {
-                        "image_id": f"{document_uuid}_p{page_idx+1}_img{img_idx}",
-                        "xref": xref,
+                        "image_id": f"{document_uuid}_p{page_num}_img{img_idx}",
+                        "src": f"data/processed/images/{img_name}", 
+                        "alt": "PDF 내 추출된 이미지 객체",
                     }
                     image_list.append(image_info)
 
                 # 페이지 레벨 단위 데이터 조립
                 page_data = {
-                    "page_id": f"{document_uuid}_p{page_idx+1}",
-                    "page_number": page_idx + 1,
+                    "page_id": f"{document_uuid}_p{page_num}",
+                    "page_number": page_num,
                     "subtitle": sub_title,
                     "text": text if text else "",
                     "tables": table_list if table_list else [],

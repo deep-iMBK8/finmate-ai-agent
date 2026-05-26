@@ -54,7 +54,6 @@ def extract_html_tables(soup: BeautifulSoup, document_uuid: str, page_number: in
             tables.append(
                 {
                     "table_id": f"{document_uuid}_p{page_number}_tbl{table_index}",
-                    "table_index": table_index,
                     "rows": rows,
                 }
             )
@@ -155,30 +154,6 @@ def pages_to_full_text(pages: list):
     return clean_text("\n\n".join(text_parts))
 
 
-def extract_customer_name(text: str):
-    patterns = [
-        r"성\s*명\s*\(.*?\)\s*Name\s*\|\s*([^|\n]+)",
-        r"고객\s*성명\s*([^\n|]+)",
-        r"성\s*명\s*[:：]?\s*([^\n|]+)",
-    ]
-    for pattern in patterns:
-        match = re.search(pattern, text)
-        if match:
-            return match.group(1).strip()
-    return ""
-
-
-def extract_checked_items(text: str):
-    checked_items = {}
-    for line in text.splitlines():
-        if "[x]" not in line.lower():
-            continue
-        cleaned = line.strip().strip("|").strip()
-        if cleaned:
-            checked_items[f"item_{len(checked_items) + 1}"] = cleaned
-    return checked_items
-
-
 def infer_company(text: str, fallback: str = ""):
     companies = [
         "신한카드", "국민카드", "삼성카드", "현대카드", "롯데카드", "우리카드", "하나카드", "비씨카드",
@@ -208,13 +183,6 @@ def infer_subtitle(text: str, fallback: str = ""):
             return line
     return fallback
 
-
-def extract_key_terms(text: str):
-    candidate_terms = [
-        "예금자보호", "전자금융", "접근매체", "수수료", "금리", "이자", "자동이체", 
-        "개인정보", "신용정보", "연회비", "이용약관", "철회권", "기한의이익"
-    ]
-    return [term for term in candidate_terms if term in text]
 
 # ------------------
 # 메인 함수
@@ -249,7 +217,6 @@ def extract_card_pdf(pdf_path: Path, metadata: dict = None) -> dict:
         # 3. RAG용 데이터 스키마
         document_data = {
             "document_uuid": document_uuid,
-            "user_id": user_id,
             "sector": "card", 
             "document_date": document_date,
             "document_type": final_document_type,
@@ -260,12 +227,6 @@ def extract_card_pdf(pdf_path: Path, metadata: dict = None) -> dict:
             "processing_engine": ["pdfminer", "beautifulsoup"],
             "pages_count": len(pages),
             "pages": pages,
-            "metadata": {
-                "customer_name": extract_customer_name(full_text),
-                "checked_items": extract_checked_items(full_text),
-                "source_file": str(pdf_path),
-                "key_terms": extract_key_terms(full_text),
-            },
         }
 
         # 4. 파일시스템 안전 변환 및 물리 디렉토리 저장 조립
@@ -295,3 +256,35 @@ def extract_card_pdf(pdf_path: Path, metadata: dict = None) -> dict:
     except Exception as e:
         print(f"Error: [{filename}] 카드 PDF 문서 파싱 중 오류 발생: {e}")
         return {}
+
+
+# def extract_customer_name(text: str):
+#     patterns = [
+#         r"성\s*명\s*\(.*?\)\s*Name\s*\|\s*([^|\n]+)",
+#         r"고객\s*성명\s*([^\n|]+)",
+#         r"성\s*명\s*[:：]?\s*([^\n|]+)",
+#     ]
+#     for pattern in patterns:
+#         match = re.search(pattern, text)
+#         if match:
+#             return match.group(1).strip()
+#     return ""
+
+
+# def extract_checked_items(text: str):
+#     checked_items = {}
+#     for line in text.splitlines():
+#         if "[x]" not in line.lower():
+#             continue
+#         cleaned = line.strip().strip("|").strip()
+#         if cleaned:
+#             checked_items[f"item_{len(checked_items) + 1}"] = cleaned
+#     return checked_items
+
+
+# def extract_key_terms(text: str):
+#     candidate_terms = [
+#         "예금자보호", "전자금융", "접근매체", "수수료", "금리", "이자", "자동이체", 
+#         "개인정보", "신용정보", "연회비", "이용약관", "철회권", "기한의이익"
+#     ]
+#     return [term for term in candidate_terms if term in text]
