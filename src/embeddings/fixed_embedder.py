@@ -85,10 +85,10 @@ for index, file_name in enumerate(json_files, 1):
     for i in range(0, len(new_chunks), BATCH_SIZE):
         batch = new_chunks[i : i + BATCH_SIZE]
         
-        # c["chunk_text"] -> c["page_content"]로 매핑 변경(양식에 맞는 컬럼으로 변환)
+        # c["chunk_text"] -> c["chunk"]로 매핑 변경(양식에 맞는 컬럼으로 변환)
         embedding_inputs = [
             TextEmbeddingInput(
-                text=f"[페이지 {c.get('metadata', {}).get('page_number', 1)}] {c['page_content']}",
+                text=f"[페이지 {c.get('metadata', {}).get('page_number', 1)}] {c['chunk']}",
                 task_type="RETRIEVAL_DOCUMENT",
             )
             for c in batch
@@ -115,7 +115,7 @@ for index, file_name in enumerate(json_files, 1):
         
         # DB 적재를 위해 뭉쳐 있는 데이터에서 ID 리스트와 본문 리스트를 각각 분리 추출
         ids = [c["generated_id"] for c in batch]
-        documents = [c["page_content"] for c in batch]
+        documents = [c["chunk"] for c in batch]
         
         # 특정 회사명/산업군 기본값 제거 및 범용 '알수없음' 가드레일 적용
         metadatas = []
