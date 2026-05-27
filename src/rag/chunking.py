@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import glob
 import json
 import os
@@ -5,10 +7,10 @@ import os
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from src.utils.chunk_helpers import (
-    clean_noise, 
-    restore_hierarchy, 
-    is_valid_table, 
-    convert_table_to_markdown
+    clean_noise,
+    convert_table_to_markdown,
+    is_valid_table,
+    restore_hierarchy,
 )
 
 # RecursiveCharacterTextSplitter는 앞 구분자부터 시도하고,
@@ -26,7 +28,18 @@ KOREAN_FINANCIAL_SEPARATORS = [
 ]
 
 
-def get_dynamic_chunk_settings(json_data: dict) -> tuple[int, int]:
+def get_dynamic_chunk_settings(
+    json_data: dict,
+    custom_config: dict | None = None,
+) -> tuple[int, int]:
+    custom_config = custom_config or {}
+    if "chunk_size" in custom_config or "overlap" in custom_config:
+        default_chunk_size, default_overlap = 600, 100
+        return (
+            int(custom_config.get("chunk_size", default_chunk_size)),
+            int(custom_config.get("overlap", default_overlap)),
+        )
+
     document_type = (json_data.get("document_type") or "").lower()
     document_title  = (json_data.get("document_title") or "").lower()
     pages_count = json_data.get("pages_count", 1)
@@ -106,9 +119,7 @@ def _process_page(page: dict, base_meta: dict, splitter: RecursiveCharacterTextS
     return chunks
 
 
-# ==================================================
-# [신규 추가] 값이 없거나 null 문자열일 때 빈 문자열("")로 안전하게 바꿔주는 헬퍼 함수
-# ==================================================
+# 값이 없거나 null 문자열일 때 빈 문자열("")로 안전하게 바꿔주는 함수
 def _safe_str(value) -> str:
     """DB 에러를 방지하기 위해 null이나 None 값을 빈 문자열로 반환합니다."""
     if value is None or str(value).strip().lower() == "null":
@@ -116,7 +127,7 @@ def _safe_str(value) -> str:
     return str(value)
 
 
-def process_document(json_data: dict, custom_config: dict | None = None) -> list[dict]:
+def chunk_document(json_data: dict, custom_config: dict | None = None) -> list[dict]:
     chunks = []
 
     # 1. 절대 타협 불가 키 (고유 식별자가 없으면 DB 매핑/업데이트 불가능)
@@ -228,7 +239,7 @@ def batch_process_json_files(
                 json_data = json.load(f)
 
             print(f"[처리중] {file_name}")
-            chunks = process_document(json_data, custom_config=custom_config)
+            chunks = chunk_document(json_data, custom_config=custom_config)
 
             if not chunks:
                 print(f"  [경고] {file_name}에서 추출할 데이터가 없습니다. 건너뜁니다.")
@@ -258,5 +269,5 @@ if __name__ == "__main__":
     OUTPUT_CHUNKS_DIR = os.path.join(project_root, "data", "processed", "chunking")
     
     print(f"입력 데이터 폴더: {INPUT_JSON_DIR}")
-    
+
     batch_process_json_files(INPUT_JSON_DIR, OUTPUT_CHUNKS_DIR)

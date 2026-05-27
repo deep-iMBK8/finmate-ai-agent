@@ -1,4 +1,6 @@
-﻿from services.gemini_service import ask_gemini
+from __future__ import annotations
+
+from services.gemini_service import ask_gemini
 
 
 def build_context_from_parsed_data(parsed_data: dict) -> str:
