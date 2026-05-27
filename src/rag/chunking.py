@@ -28,31 +28,22 @@ KOREAN_FINANCIAL_SEPARATORS = [
 ]
 
 
-def get_dynamic_chunk_settings(json_data: dict, custom_config: dict | None = None) -> tuple[int, int]:
-    """문서 메타데이터를 분석하여 최적의 (chunk_size, overlap)을 반환합니다."""
-
-    # 1. 수동 강제 설정 우선 적용
-    if custom_config:
-        company_key = json_data.get("company", "")
-        if company_key in custom_config:
-            cfg = custom_config[company_key]
-            return cfg.get("chunk_size", 600), cfg.get("overlap", 100)
-
-    doc_type = (json_data.get("document_type") or "").lower()
-    company  = (json_data.get("company")        or "").lower()
+def get_dynamic_chunk_settings(json_data: dict) -> tuple[int, int]:
+    document_type = (json_data.get("document_type") or "").lower()
+    document_title  = (json_data.get("document_title") or "").lower()
     pages_count = json_data.get("pages_count", 1)
 
-    # 2. 문서 유형·분량별 규칙
-    if "보험" in company or "약관" in doc_type or pages_count > 50:
-        # 초거대 보험 약관: 조항 간 문맥 보존을 위해 크게
+    # 문서 유형·분량별 규칙
+    if "보험" in document_title or "약관" in document_type or pages_count > 50:
+        # 보험/약관: 문서 사이즈가 큼
         return 900, 200
-    elif "설명서" in doc_type or "가이드" in doc_type or "투자" in doc_type or 2 < pages_count <= 50:
+    elif "설명서" in document_type or "가이드" in document_type or "투자" in document_title or 2 < pages_count <= 50:
         # 상품설명서·투자안내서 혼합형
         return 700, 150
-    elif "명세서" in doc_type or "내역" in doc_type or "card" in company:
+    elif "명세서" in document_type or "내역" in document_type or "card" in document_title:
         # 표 위주 명세서
         return 500, 100
-    elif pages_count <= 2 or "통장" in doc_type or "bankbook" in company:
+    elif pages_count <= 2 or "통장" in document_type or "bankbook" in document_title:
         # 1~2페이지 증명서·통장 사본
         return 400, 50
 
@@ -117,9 +108,7 @@ def _process_page(page: dict, base_meta: dict, splitter: RecursiveCharacterTextS
     return chunks
 
 
-# ==================================================
-# [신규 추가] 값이 없거나 null 문자열일 때 빈 문자열("")로 안전하게 바꿔주는 헬퍼 함수
-# ==================================================
+# 값이 없거나 null 문자열일 때 빈 문자열("")로 안전하게 바꿔주는 함수
 def _safe_str(value) -> str:
     """DB 에러를 방지하기 위해 null이나 None 값을 빈 문자열로 반환합니다."""
     if value is None or str(value).strip().lower() == "null":
@@ -223,13 +212,14 @@ def batch_process_json_files(
         custom_config = {}
 
     os.makedirs(output_dir, exist_ok=True)
-
+    
     json_files = glob.glob(os.path.join(input_dir, "*.json"))
     if not json_files:
         print(f"'{input_dir}' 폴더에 처리할 JSON 파일이 없습니다.")
         return
 
     print(f"총 {len(json_files)}개의 JSON 파일을 찾았습니다. 청킹 작업을 시작합니다...\n")
+    print("-" * 50)
 
     for file_path in json_files:
         file_name = os.path.basename(file_path)
@@ -244,7 +234,7 @@ def batch_process_json_files(
                 print(f"  [경고] {file_name}에서 추출할 데이터가 없습니다. 건너뜁니다.")
                 continue
 
-            base_name = os.path.splitext(file_name)[0]
+            base_name        = os.path.splitext(file_name)[0]
             output_file_path = os.path.join(output_dir, f"{base_name}_chunked.json")
 
             with open(output_file_path, "w", encoding="utf-8") as f:
@@ -255,6 +245,7 @@ def batch_process_json_files(
         except Exception as e:
             print(f"  [에러] {file_name} 처리 중 문제 발생: {e}\n")
 
+    print("-" * 50)
     print(f"작업 완료! 결과물 확인 경로: {output_dir}")
 
 
