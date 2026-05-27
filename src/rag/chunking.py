@@ -6,6 +6,7 @@ import os
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
+from src.config.paths import CHUNKS_DIR, PROCESSED_JSON_DIR
 from src.utils.chunk_helpers import (
     clean_noise,
     convert_table_to_markdown,
@@ -214,6 +215,7 @@ def chunk_document(json_data: dict, custom_config: dict | None = None) -> list[d
     return chunks
 
 
+# chunking.py 독립 실행할 때
 def batch_process_json_files(
     input_dir: str,
     output_dir: str,
@@ -261,13 +263,4 @@ def batch_process_json_files(
 
 
 if __name__ == "__main__":
-    current_dir = os.path.dirname(os.path.abspath(__file__)) 
-    project_root = os.path.dirname(os.path.dirname(current_dir)) 
-    
-    # 루트 아래의 data 폴더로 경로 설정
-    INPUT_JSON_DIR = os.path.join(project_root, "data", "processed", "json")
-    OUTPUT_CHUNKS_DIR = os.path.join(project_root, "data", "processed", "chunking")
-    
-    print(f"입력 데이터 폴더: {INPUT_JSON_DIR}")
-
-    batch_process_json_files(INPUT_JSON_DIR, OUTPUT_CHUNKS_DIR)
+    batch_process_json_files(PROCESSED_JSON_DIR, CHUNKS_DIR)
