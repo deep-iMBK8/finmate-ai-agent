@@ -1,3 +1,6 @@
+# TODO:
+# 사용자 입력으로 연월(기간), 회사, 문서 종류 받아서 dart 서칭하는 식으로 추후 변경 예정
+
 import json
 import os
 import re
@@ -9,15 +12,18 @@ import dart_fss as dart
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 
+from src.config.paths import PROCESSED_JSON_DIR
+from src.utils.docs_helpers import safe_filename
+
+# api key 로드
 load_dotenv()
 
 dart_api_key = os.getenv("DART_API_KEY")
 
 dart.set_api_key(api_key=dart_api_key)
 
-DOWNLOAD_DIR = "./data/processed/json/dart"
-os.makedirs(DOWNLOAD_DIR, exist_ok=True)
-
+# 추출된 메타데이터 저장할 경로
+PROCESSED_JSON_DIR.mkdir(parents=True, exist_ok=True)    # 폴더 새로 생성
 
 # 찾을 기업
 targets = set(
@@ -35,7 +41,6 @@ target_types = [
     "설명서",
     "정관",
 ]
-
 
 # 기업 검색
 
@@ -162,7 +167,6 @@ for report in report_list:
                 table_list.append(
                     {
                         "table_id": f"{document_uuid}_p{page_idx}_tbl{table_idx}",
-                        "table_index": table_idx,
                         "rows": table_rows,
                     }
                 )
@@ -228,10 +232,10 @@ for report in report_list:
     # print(first_page_preview + " ... (후략)")
 
     # 파일명 안전 처리
-    safe_report_name = re.sub(r'[\\/*?:"<>|]', "", document_title)
+    safe_report_name = safe_filename(document_title)
 
     # JSON 확장자로 저장
-    file_path = os.path.join(DOWNLOAD_DIR, f"{company}_{document_uuid}.json")
+    file_path = os.path.join(PROCESSED_JSON_DIR, f"{company}_{document_uuid}.json")
     with open(file_path, "w", encoding="utf-8") as f:
         json.dump(document_data, f, ensure_ascii=False, indent=2)
 
