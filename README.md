@@ -9,28 +9,47 @@ AI-powered financial document intelligence agent for managing, searching, and un
 
 ### 개발 환경
 
-python 3.10  
-Anaconda
+![Python](https://img.shields.io/badge/Python-3.10-blue?style=flat-square&logo=python)
+![Anaconda](https://img.shields.io/badge/Anaconda-44A833?style=flat-square&logo=Anaconda&logoColor=white")
 
-### 텍스트 추출 및 파싱
+### 텍스트 추출 & 파싱
 
-gemini 3.1, PuMuPDF, pdfminer, BeautifulSoup, pdfplumber
+![Gemini](https://img.shields.io/badge/Gemini-3.1-8E75B2?style=flat-square&logo=googlegemini)
+![PuMuPDF](https://img.shields.io/badge/PuMuPDF-black?style=flat-square)
+![pdfminer](https://img.shields.io/badge/pdfminer-black?style=flat-square)
+![BeautifulSoup](https://img.shields.io/badge/BeautifulSoup-black?style=flat-square)
+![pdfplumber](https://img.shields.io/badge/pdfplumber-black?style=flat-square)
 
-### RAG
+### RAG & LLM
 
-LangChain, text-multilingual-embedding-002 (Vertex AI)
+![LangChain](https://img.shields.io/badge/LangChain-7FC8FF?style=flat-square&logo=langchain)
+![Vertex AI](https://img.shields.io/badge/VertexAI-black?style=flat-square) (text-multilingual-embedding-002)
 
-### LLM
+### 데이터베이스
 
-Gemini 3.1
+![MySQL](https://img.shields.io/badge/MySQL-4479A1?style=flat-square&logo=mysql)
+![ChromaDB](https://img.shields.io/badge/ChromaDB-black?style=flat-square)
 
-### lint/formatting
+### 웹 프론트엔드
 
-black/isort/flake8
+![HTML5](https://img.shields.io/badge/HTML5-E34F26?style=flat-square&logo=html5&logoColor=white)
+![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=flat-square&logo=javascript&logoColor=black)
+![CSS3](https://img.shields.io/badge/CSS3-1572B6?style=flat-square&logo=css3&logoColor=white)
+
+### 배포 환경
+
+![GCP](https://img.shields.io/badge/GoogleCloud-4285F4?style=flat-square&logo=googlecloud&logoColor=white)
+
+### 코드 포맷팅
+
+![black](https://img.shields.io/badge/black-black?style=flat-square)
+![flake8](https://img.shields.io/badge/flake8-black?style=flat-square)
+![isort](https://img.shields.io/badge/isort-black?style=flat-square)
 
 ### 협업 도구
 
-GitHub, Notion
+![GitHub](https://img.shields.io/badge/GitHub-black?style=flat-square&logo=github)
+![Notion](https://img.shields.io/badge/Notion-grey?style=flat-square&logo=notion)
 
 ## 프로젝트 구조
 
