@@ -33,9 +33,14 @@ _ocr_engine = None
 
 SECTOR_MAP = {
     "은행": "bank",
+    "bank": "bank",
     "카드": "card",
+    "card": "card",
     "보험": "insurance",
+    "insurance": "insurance",
     "투자": "stock",
+    "증권": "stock",
+    "stock": "stock",
 }
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 
@@ -167,6 +172,28 @@ def _search_chunks(question: str, document_id: str | None = None, top_k: int = 4
     return chunks
 
 
+def _load_document_chunks(document_id: str, limit: int = 4) -> list[dict]:
+    chunk_path = CHUNKS_DIR / f"{document_id}_chunked.json"
+    if not chunk_path.exists():
+        return []
+
+    chunks = json.loads(chunk_path.read_text(encoding="utf-8"))
+    fallback_sources = []
+    for chunk in chunks[:limit]:
+        metadata = chunk.get("metadata") or {}
+        metadata["source_scope"] = "selected_document"
+        fallback_sources.append(
+            {
+                "text": chunk.get("chunk", ""),
+                "metadata": metadata,
+                "distance": None,
+                "score": None,
+                "scope": "selected_document",
+            }
+        )
+    return fallback_sources
+
+
 def _answer_with_sources(
     question: str,
     document_id: str,
@@ -174,7 +201,13 @@ def _answer_with_sources(
     include_related_documents: bool = False,
     related_top_k: int = 4,
 ) -> tuple[str, list[dict]]:
-    selected_chunks = _search_chunks(question, document_id=document_id, top_k=top_k)
+    try:
+        selected_chunks = _search_chunks(question, document_id=document_id, top_k=top_k)
+        search_error = None
+    except Exception as error:
+        selected_chunks = _load_document_chunks(document_id, limit=top_k)
+        search_error = error
+
     chunks = []
     seen = set()
 
@@ -185,8 +218,12 @@ def _answer_with_sources(
         chunks.append(source)
         seen.add(_source_key(source))
 
-    if include_related_documents:
-        for source in _search_chunks(question, document_id=None, top_k=related_top_k):
+    if include_related_documents and search_error is None:
+        try:
+            related_sources = _search_chunks(question, document_id=None, top_k=related_top_k)
+        except Exception:
+            related_sources = []
+        for source in related_sources:
             key = _source_key(source)
             if key in seen:
                 continue
@@ -195,6 +232,9 @@ def _answer_with_sources(
             metadata["source_scope"] = "related_document"
             chunks.append(source)
             seen.add(key)
+
+    if not chunks:
+        raise HTTPException(status_code=404, detail="질문에 사용할 문서 청크를 찾을 수 없습니다.")
 
     context = "\n\n---\n\n".join(
         (
@@ -224,21 +264,31 @@ def _store_chat(
 
     is_new_session = not session_id
     session_id = session_id or uuid.uuid4().hex
-    db_store.ensure_chat_session(
-        user_id=user_id or "anonymous",
-        session_id=session_id,
-        title=question[:255] if is_new_session else None,
-    )
-    db_store.insert_chat_message(session_id, user_id, "user", question, document_id)
-    assistant_message_id = db_store.insert_chat_message(
-        session_id,
-        user_id,
-        "assistant",
-        answer,
-        document_id,
-    )
-    db_store.insert_retrieved_sources(assistant_message_id, sources)
+    try:
+        db_store.ensure_chat_session(
+            user_id=user_id or "anonymous",
+            session_id=session_id,
+            title=question[:255] if is_new_session else None,
+        )
+        db_store.insert_chat_message(session_id, user_id, "user", question, document_id)
+        assistant_message_id = db_store.insert_chat_message(
+            session_id,
+            user_id,
+            "assistant",
+            answer,
+            document_id,
+        )
+        db_store.insert_retrieved_sources(assistant_message_id, sources)
+    except Exception as error:
+        print(f"채팅 저장 실패: {error}")
     return session_id
+
+
+def _db_unavailable_payload(error: Exception) -> dict:
+    return {
+        "message": "MySQL 연결 실패",
+        "detail": str(error),
+    }
 
 
 @app.get("/")
@@ -407,7 +457,12 @@ async def documents(user_id: str | None = None):
     if not db_store.mysql_enabled():
         return JSONResponse({"documents": [], "message": "MySQL 비활성화"})
 
-    rows = db_store.list_documents(user_id=user_id, limit=100)
+    try:
+        rows = db_store.list_documents(user_id=user_id, limit=100)
+    except Exception as error:
+        payload = _db_unavailable_payload(error)
+        payload["documents"] = []
+        return JSONResponse(payload, status_code=200)
     return JSONResponse(jsonable_encoder({"documents": rows}))
 
 
@@ -416,7 +471,12 @@ async def chat_sessions(user_id: str = "000001", q: str | None = None):
     if not db_store.mysql_enabled():
         return JSONResponse({"sessions": []})
 
-    rows = db_store.list_chat_sessions(user_id=user_id, query=q, limit=80)
+    try:
+        rows = db_store.list_chat_sessions(user_id=user_id, query=q, limit=80)
+    except Exception as error:
+        payload = _db_unavailable_payload(error)
+        payload["sessions"] = []
+        return JSONResponse(payload, status_code=200)
     return JSONResponse(jsonable_encoder({"sessions": rows}))
 
 
@@ -425,7 +485,12 @@ async def chat_session_messages(session_id: str, user_id: str = "000001"):
     if not db_store.mysql_enabled():
         return JSONResponse({"messages": []})
 
-    rows = db_store.get_chat_messages(session_id=session_id, user_id=user_id)
+    try:
+        rows = db_store.get_chat_messages(session_id=session_id, user_id=user_id)
+    except Exception as error:
+        payload = _db_unavailable_payload(error)
+        payload["messages"] = []
+        return JSONResponse(payload, status_code=200)
     return JSONResponse(jsonable_encoder({"messages": rows}))
 
 
@@ -434,7 +499,10 @@ async def delete_chat_session(session_id: str, user_id: str = "000001"):
     if not db_store.mysql_enabled():
         raise HTTPException(status_code=400, detail="MySQL 비활성화")
 
-    result = db_store.delete_chat_session(session_id=session_id, user_id=user_id)
+    try:
+        result = db_store.delete_chat_session(session_id=session_id, user_id=user_id)
+    except Exception as error:
+        raise HTTPException(status_code=503, detail=_db_unavailable_payload(error)) from error
     if not result.get("deleted"):
         raise HTTPException(status_code=404, detail=result.get("message", "채팅 세션을 찾을 수 없습니다."))
     return JSONResponse(jsonable_encoder(result))
@@ -445,7 +513,10 @@ async def delete_document(document_id: str, delete_chroma: bool = True, delete_f
     if not db_store.mysql_enabled():
         raise HTTPException(status_code=400, detail="MySQL 비활성화")
 
-    db_result = db_store.delete_document(document_id=document_id)
+    try:
+        db_result = db_store.delete_document(document_id=document_id)
+    except Exception as error:
+        raise HTTPException(status_code=503, detail=_db_unavailable_payload(error)) from error
     if not db_result.get("deleted"):
         raise HTTPException(status_code=404, detail=db_result.get("message", "문서를 찾을 수 없습니다."))
 

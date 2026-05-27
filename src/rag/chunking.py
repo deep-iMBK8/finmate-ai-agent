@@ -28,7 +28,18 @@ KOREAN_FINANCIAL_SEPARATORS = [
 ]
 
 
-def get_dynamic_chunk_settings(json_data: dict) -> tuple[int, int]:
+def get_dynamic_chunk_settings(
+    json_data: dict,
+    custom_config: dict | None = None,
+) -> tuple[int, int]:
+    custom_config = custom_config or {}
+    if "chunk_size" in custom_config or "overlap" in custom_config:
+        default_chunk_size, default_overlap = 600, 100
+        return (
+            int(custom_config.get("chunk_size", default_chunk_size)),
+            int(custom_config.get("overlap", default_overlap)),
+        )
+
     document_type = (json_data.get("document_type") or "").lower()
     document_title  = (json_data.get("document_title") or "").lower()
     pages_count = json_data.get("pages_count", 1)
