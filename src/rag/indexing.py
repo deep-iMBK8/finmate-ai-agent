@@ -6,11 +6,7 @@ import time
 from dotenv import load_dotenv
 
 from src.config.paths import CHROMA_DIR
-
-try:
-    from mysql import db_store
-except Exception:
-    db_store = None
+from src.database import db_store
 
 
 COLLECTION_NAME = "financial_documents"

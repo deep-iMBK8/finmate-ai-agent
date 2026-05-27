@@ -116,7 +116,7 @@ def _safe_str(value) -> str:
     return str(value)
 
 
-def process_document(json_data: dict, custom_config: dict | None = None) -> list[dict]:
+def chunk_document(json_data: dict, custom_config: dict | None = None) -> list[dict]:
     chunks = []
 
     # 1. 절대 타협 불가 키 (고유 식별자가 없으면 DB 매핑/업데이트 불가능)
@@ -228,7 +228,7 @@ def batch_process_json_files(
                 json_data = json.load(f)
 
             print(f"[처리중] {file_name}")
-            chunks = process_document(json_data, custom_config=custom_config)
+            chunks = chunk_document(json_data, custom_config=custom_config)
 
             if not chunks:
                 print(f"  [경고] {file_name}에서 추출할 데이터가 없습니다. 건너뜁니다.")

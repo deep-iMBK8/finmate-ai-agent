@@ -13,21 +13,18 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from mysql import db_store
-from src.config.paths import CHROMA_DIR, CHUNKS_DIR, PROCESSED_JSON_DIR, RAW_IMAGE_DIR, RAW_PDF_DIR
-from src.rag.chunking import process_document
-from src.rag.embedding import embed_and_store_chunks, embed_query, get_collection
+# from src.database.db_store import mysql_enabled, upsert_parsed_document, upsert_chunked_document, ensure_chat_session, insert_chat_message, insert_retrieved_sources, list_documents, list_chat_sessions, get_chat_messages
+from src.database import db_store
+from src.config.paths import CHROMA_DIR, CHUNKS_DIR, PROCESSED_JSON_DIR, RAW_IMAGE_DIR, RAW_PDF_DIR, STATIC_DIR, TEMPLATES_DIR
+from src.rag.chunking import chunk_document
+from src.rag.indexing import embed_and_store_chunks, embed_query, get_collection
 from src.services.gemini_service import ask_gemini
 
 
 load_dotenv()
 
-BASE_DIR = Path(__file__).resolve().parent.parent
-FRONT_DIR = BASE_DIR / "src" / "front" / "components"
-CHAT_LOG_DIR = BASE_DIR / "data" / "chat_logs"
-
 app = FastAPI(title="FinMate AI Agent")
-app.mount("/static", StaticFiles(directory=FRONT_DIR), name="static")
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT") or os.getenv("PROJECT_ID")
 LOCATION = os.getenv("GOOGLE_CLOUD_LOCATION", "global")
@@ -39,11 +36,6 @@ SECTOR_MAP = {
     "카드": "card",
     "보험": "insurance",
     "투자": "stock",
-    "증권": "stock",
-    "bank": "bank",
-    "card": "card",
-    "insurance": "insurance",
-    "stock": "stock",
 }
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 
@@ -206,7 +198,7 @@ def _answer_with_sources(
 
     context = "\n\n---\n\n".join(
         (
-            f"[범위: {'현재 선택 문서' if source.get('scope') == 'selected_document' else 'DB 내 관련 문서'}, "
+            f"범위: {'현재 선택 문서' if source.get('scope') == 'selected_document' else 'DB 내 관련 문서'}, "
             f"문서: {source['metadata'].get('document_id', '-')}, "
             f"페이지: {source['metadata'].get('page_number', '-')}, "
             f"회사: {source['metadata'].get('company', '-')}]\n"
@@ -251,7 +243,7 @@ def _store_chat(
 
 @app.get("/")
 def index():
-    return FileResponse(FRONT_DIR / "index.html")
+    return FileResponse(TEMPLATES_DIR / "index.html")
 
 
 @app.post("/api/upload")
@@ -292,6 +284,7 @@ async def parse_document(
     else:
         raise HTTPException(status_code=400, detail=f"지원하지 않는 파일 형식입니다 ({file_suffix}).")
 
+    # 원본 파일 입시 저장
     target_dir.mkdir(parents=True, exist_ok=True)
     target_path = target_dir / stored_filename
     with target_path.open("wb") as buffer:
@@ -331,7 +324,7 @@ async def parse_document(
         _write_json(parsed_json_path, parsed)
         db_document_status = _store_document_to_mysql(parsed, parsed_json_path, filename, target_path)
 
-        chunks = process_document(parsed)
+        chunks = chunk_document(parsed)
         chunk_json_path = CHUNKS_DIR / f"{document_id}_chunked.json"
         _write_json(chunk_json_path, chunks)
         db_chunk_status = _store_chunks_to_mysql(chunks, chunk_json_path, parsed_json_path)

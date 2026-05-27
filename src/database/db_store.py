@@ -8,11 +8,10 @@ from typing import Any
 
 from dotenv import load_dotenv
 
+from src.config.paths import SCHEMA_PATH
+
 
 load_dotenv()
-
-BASE_DIR = Path(__file__).resolve().parent.parent
-DEFAULT_SCHEMA_PATH = BASE_DIR / "mysql" / "schema.sql"
 
 
 def mysql_enabled() -> bool:
@@ -43,7 +42,8 @@ def _quote_identifier(value: str) -> str:
     return "`" + value.replace("`", "``") + "`"
 
 
-def execute_schema(schema_path: str | Path = DEFAULT_SCHEMA_PATH) -> None:
+# db 세팅
+def execute_schema(schema_path: str | Path = SCHEMA_PATH) -> None:
     database = os.getenv("MYSQL_DATABASE")
     if not database:
         raise ValueError("MYSQL_DATABASE 환경변수가 필요합니다.")
