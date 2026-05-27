@@ -13,13 +13,19 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-# from src.database.db_store import mysql_enabled, upsert_parsed_document, upsert_chunked_document, ensure_chat_session, insert_chat_message, insert_retrieved_sources, list_documents, list_chat_sessions, get_chat_messages
+from src.config.paths import (
+    CHROMA_DIR,
+    CHUNKS_DIR,
+    PROCESSED_JSON_DIR,
+    RAW_IMAGE_DIR,
+    RAW_PDF_DIR,
+    STATIC_DIR,
+    TEMPLATES_DIR,
+)
 from src.database import db_store
-from src.config.paths import CHROMA_DIR, CHUNKS_DIR, PROCESSED_JSON_DIR, RAW_IMAGE_DIR, RAW_PDF_DIR, STATIC_DIR, TEMPLATES_DIR
 from src.rag.chunking import chunk_document
 from src.rag.indexing import embed_and_store_chunks, embed_query, get_collection
 from src.services.gemini_service import ask_gemini
-
 
 load_dotenv()
 
@@ -31,6 +37,7 @@ LOCATION = os.getenv("GOOGLE_CLOUD_LOCATION", "global")
 _pdf_router = None
 _ocr_engine = None
 
+# TODO: 매핑 키 수정 필요ㅇ - 영어 없애기
 SECTOR_MAP = {
     "은행": "bank",
     "bank": "bank",

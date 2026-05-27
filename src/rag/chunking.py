@@ -7,10 +7,10 @@ import os
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from src.utils.chunk_helpers import (
-    clean_noise, 
-    restore_hierarchy, 
-    is_valid_table, 
-    convert_table_to_markdown
+    clean_noise,
+    convert_table_to_markdown,
+    is_valid_table,
+    restore_hierarchy,
 )
 
 # RecursiveCharacterTextSplitter는 앞 구분자부터 시도하고,

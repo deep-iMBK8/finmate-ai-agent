@@ -8,7 +8,6 @@ from dotenv import load_dotenv
 from src.config.paths import CHROMA_DIR
 from src.database import db_store
 
-
 COLLECTION_NAME = "financial_documents"
 EMBEDDING_MODEL = "text-multilingual-embedding-002"
 EMBEDDING_LOCATION = "asia-northeast3"

@@ -2,6 +2,7 @@ import sys
 from pathlib import Path
 
 from src.config.paths import BASE_DIR
+
 if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 

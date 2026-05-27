@@ -10,7 +10,6 @@ from dotenv import load_dotenv
 
 from src.config.paths import SCHEMA_PATH
 
-
 load_dotenv()
 
 
