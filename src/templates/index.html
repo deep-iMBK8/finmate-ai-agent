@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>FinMate | 당신 곁의 금융 메이트</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <main class="chat-shell">
+      <aside class="chat-sidebar" aria-label="채팅 목록">
+        <div class="chat-sidebar-head">
+          <div class="sidebar-brand">
+            <span class="brand-dot"></span>
+            <strong>FinMate</strong>
+          </div>
+          <button
+            id="sidebarToggleBtn"
+            class="icon-button"
+            type="button"
+            title="사이드바 접기"
+          >
+            ☰
+          </button>
+        </div>
+        <section class="compact-section">
+          <div class="section-head">
+            <h2>문서 작업</h2>
+          </div>
+          <form id="uploadForm">
+            <input type="file" name="file" required />
+            <div class="document-fields">
+              <label>사용자 ID</label>
+              <input name="user_id" value="000001" />
+              <label>분야</label>
+              <select name="document_sector">
+                <option value="카드">카드</option>
+                <option value="증권">증권</option>
+                <option value="은행">은행</option>
+                <option value="보험">보험</option>
+                <option value="투자">투자</option>
+              </select>
+            </div>
+            <button id="uploadBtn" type="submit">문서 읽기</button>
+          </form>
+          <div class="doc-strip">
+            <strong>선택된 문서</strong>
+            <div id="docInfo">아직 선택된 문서가 없습니다.</div>
+            <div id="fileInfo">업로드하거나 저장 문서를 불러오세요.</div>
+          </div>
+        </section>
+
+        <section class="compact-section">
+          <div class="section-head">
+            <h2>저장 문서</h2>
+          </div>
+          <select id="documentSelect">
+            <option value="">저장된 문서를 불러오세요</option>
+          </select>
+          <div class="quick-actions">
+            <button id="loadDocsBtn" class="secondary">목록 불러오기</button>
+            <button id="selectDocBtn" class="secondary">이 문서 사용</button>
+          </div>
+          <button id="deleteDocBtn" class="danger" type="button">선택 문서 삭제</button>
+        </section>
+
+        <section class="compact-section chat-history-section">
+          <div class="section-head">
+            <h2>채팅 기록</h2>
+          </div>
+          <input id="chatSearch" class="chat-search" type="search" placeholder="채팅 검색" />
+          <div id="chatSessionList" class="chat-session-list">
+            <div class="empty-chat-list">최근 채팅이 없습니다.</div>
+          </div>
+        </section>
+      </aside>
+
+      <section class="chat-main">
+        <div class="chat-topbar">
+          <button
+            id="sidebarExpandBtn"
+            class="icon-button sidebar-expand"
+            type="button"
+            title="사이드바 펼치기"
+          >
+            ☰
+          </button>
+          <div class="chat-title">
+            <h2 id="activeChatTitle">새 채팅</h2>
+            <p id="chatContext">
+              선택된 문서가 없습니다. 왼쪽 사이드바에서 문서를 업로드하거나 불러오세요.
+            </p>
+          </div>
+          <div class="pill" id="systemState">대기 중</div>
+          <button id="summaryBtn" class="secondary" type="button">요약</button>
+        </div>
+        <div id="answer" class="chat-messages">
+          <div class="welcome">
+            <h2>무엇을 확인해볼까요?</h2>
+            <p>문서를 선택한 뒤 질문하면 근거를 찾아 답변합니다.</p>
+          </div>
+        </div>
+        <div class="composer-wrap">
+          <div class="composer">
+            <textarea id="question" placeholder="문서에 대해 질문해보세요"></textarea>
+            <button id="askBtn" type="button">전송</button>
+            <button id="newChatBtn" class="secondary" type="button">새 채팅</button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script src="/static/app.js?v=20260527-chat-delete"></script>
+  </body>
+</html>

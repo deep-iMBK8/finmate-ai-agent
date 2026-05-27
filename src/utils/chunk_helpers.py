@@ -1,5 +1,6 @@
 import re
 
+
 def clean_noise(text: str) -> str:
     """OCR 과정에서 섞여 들어온 제어 문자 및 반복 노이즈를 제거합니다."""
     if not text:
