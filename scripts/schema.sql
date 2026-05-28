@@ -25,6 +25,8 @@ CREATE TABLE IF NOT EXISTS documents (
   INDEX idx_documents_user_id (user_id),
   INDEX idx_documents_company (company),
   INDEX idx_documents_type (document_type),
+  INDEX idx_documents_sector (document_sector),
+  INDEX idx_documents_date (document_date),
   CONSTRAINT fk_documents_user FOREIGN KEY (user_id) REFERENCES users(user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -34,10 +36,12 @@ CREATE TABLE IF NOT EXISTS document_chunks (
   chunk_id INT NOT NULL,
   page_number INT NULL,
   chroma_id VARCHAR(512) NOT NULL,
-  text_preview TEXT NULL,
+  chunk_text LONGTEXT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uq_document_chunk (document_id, chunk_id),
   INDEX idx_document_chunks_document_id (document_id),
+  INDEX idx_chunks_page (page_number),
+  FULLTEXT INDEX ft_document_chunks_text (chunk_text),
   CONSTRAINT fk_document_chunks_document FOREIGN KEY (document_id) REFERENCES documents(document_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
