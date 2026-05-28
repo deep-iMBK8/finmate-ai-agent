@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import time
 import uuid
@@ -50,6 +51,35 @@ SECTOR_MAP = {
     "stock": "stock",
 }
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
+DOCUMENT_TYPE_KEYWORDS = ["약관", "명세서", "신청서", "설명서", "안내장"]
+EXACT_MARKERS = [
+    "금액",
+    "날짜",
+    "계좌",
+    "이율",
+    "수수료",
+    "한도",
+    "조항",
+    "고객명",
+    "이름",
+    "번호",
+    "연회비",
+    "기본연회비",
+    "제휴연회비",
+    "얼마",
+]
+QUERY_STOPWORDS = {
+    "얼마야",
+    "얼마",
+    "뭐야",
+    "무엇",
+    "알려줘",
+    "찾아줘",
+    "기본적인",
+    "내용",
+    "관련",
+    "문서",
+}
 
 
 def _safe_filename(filename: str | None) -> str:
@@ -133,6 +163,7 @@ def _store_chunks_to_mysql(chunks: list[dict], chunk_path: Path, source_json_pat
         return "MySQL 비활성화: 청크 저장 건너뜀"
 
     try:
+        db_store.ensure_hybrid_search_schema()
         db_store.upsert_chunked_document(
             chunks=chunks,
             chunked_json_path=chunk_path,
@@ -148,11 +179,108 @@ def _source_key(source: dict) -> tuple[str, str]:
     metadata = source.get("metadata") or {}
     return (
         str(metadata.get("document_id") or metadata.get("document_uuid") or ""),
-        str(metadata.get("chunk_id") or ""),
+        str(_chunk_key(metadata.get("chunk_id")) or ""),
     )
 
 
-def _search_chunks(question: str, document_id: str | None = None, top_k: int = 4) -> list[dict]:
+def _chunk_key(chunk_id) -> int | str | None:
+    if chunk_id is None:
+        return None
+    text = str(chunk_id)
+    if text.isdigit():
+        return int(text)
+    match = re.search(r"_chunk(\d+)$", text)
+    if match:
+        return int(match.group(1))
+    return text
+
+
+def _keyword_terms(question: str) -> list[str]:
+    terms = []
+    for term in re.findall(r"[0-9A-Za-z가-힣]+", question or ""):
+        if len(term) < 2 or term in QUERY_STOPWORDS:
+            continue
+        terms.append(term)
+        stripped = re.sub(r"(이|가|은|는|을|를|와|과|도|만|에|의)$", "", term)
+        if len(stripped) >= 2 and stripped != term:
+            terms.append(stripped)
+        if term.endswith("적인") and len(term) > 3:
+            terms.append(term[:-2])
+    for marker in EXACT_MARKERS:
+        if marker in (question or ""):
+            terms.append(marker)
+    return list(dict.fromkeys(terms))[:12]
+
+
+def _analyze_query(question: str, user_id: str) -> dict:
+    clean_question = " ".join((question or "").split())
+    filters = {
+        "keyword_query": clean_question,
+        "has_exact_marker": any(marker in clean_question for marker in EXACT_MARKERS),
+        "keyword_terms": _keyword_terms(clean_question),
+    }
+
+    for keyword, sector in SECTOR_MAP.items():
+        if keyword in clean_question:
+            filters["sector"] = sector
+            break
+
+    for document_type in DOCUMENT_TYPE_KEYWORDS:
+        if document_type in clean_question:
+            filters["document_type"] = document_type
+            break
+
+    if db_store.mysql_enabled():
+        try:
+            for company in db_store.list_known_companies(user_id):
+                if company and company in clean_question:
+                    filters["company"] = company
+                    break
+        except Exception as error:
+            print(f"회사명 추출 실패: {error}")
+
+    return filters
+
+
+def _keyword_search_chunks(
+    question: str,
+    user_id: str,
+    document_id: str | None = None,
+    filters: dict | None = None,
+    top_k: int = 12,
+) -> list[dict]:
+    if not db_store.mysql_enabled():
+        return []
+    try:
+        db_store.ensure_hybrid_search_schema()
+        return db_store.keyword_search_chunks(question, user_id, document_id, filters, top_k)
+    except Exception as error:
+        print(f"MySQL keyword search 실패: {error}")
+        return []
+
+
+def _metadata_search_chunks(
+    user_id: str,
+    document_id: str | None = None,
+    filters: dict | None = None,
+    top_k: int = 12,
+) -> list[dict]:
+    if not db_store.mysql_enabled():
+        return []
+    try:
+        db_store.ensure_hybrid_search_schema()
+        return db_store.metadata_search_chunks(user_id, document_id, filters, top_k)
+    except Exception as error:
+        print(f"MySQL metadata search 실패: {error}")
+        return []
+
+
+def _semantic_search_chunks(
+    question: str,
+    document_id: str | None = None,
+    filters: dict | None = None,
+    top_k: int = 12,
+) -> list[dict]:
     collection = get_collection()
     where = {"document_id": document_id} if document_id else None
     results = collection.query(
@@ -174,17 +302,192 @@ def _search_chunks(question: str, document_id: str | None = None, top_k: int = 4
                 "metadata": metadata or {},
                 "distance": distance,
                 "score": round(1 - distance, 4),
+                "vector_score": 1 - distance,
+                "retrieval_methods": ["semantic"],
             }
         )
     return chunks
 
 
-def _load_document_chunks(document_id: str, limit: int = 4) -> list[dict]:
+def _chroma_keyword_search_chunks(
+    question: str,
+    document_id: str | None = None,
+    filters: dict | None = None,
+    top_k: int = 12,
+) -> list[dict]:
+    terms = (filters or {}).get("keyword_terms") or _keyword_terms(question)
+    if not terms:
+        return []
+
+    collection = get_collection()
+    where = {"document_id": document_id} if document_id else None
+    if where:
+        rows = collection.get(where=where, include=["documents", "metadatas"])
+    else:
+        rows = collection.get(include=["documents", "metadatas"])
+    candidates = []
+    for text, metadata in zip(rows.get("documents", []), rows.get("metadatas", [])):
+        text = text or ""
+        score = _lexical_score(text, terms)
+        if score <= 0:
+            continue
+        candidates.append(
+            {
+                "text": text,
+                "metadata": metadata or {},
+                "keyword_score": score,
+                "retrieval_methods": ["chroma_keyword"],
+            }
+        )
+
+    candidates.sort(key=lambda result: result.get("keyword_score", 0.0), reverse=True)
+    return candidates[:top_k]
+
+
+def _lexical_score(text: str, terms: list[str]) -> float:
+    score = 0.0
+    for term in terms:
+        count = text.count(term)
+        if not count:
+            continue
+        capped_count = min(count, 3)
+        score += capped_count
+        if term in EXACT_MARKERS:
+            score += capped_count * 2
+    has_amount = bool(re.search(r"\d[\d,]*\s*(원|만원|천원|%)", text))
+    if has_amount:
+        score += 2.0
+    if "얼마" in terms and has_amount:
+        score += 8.0
+    if "연회비" in terms and "기본연회비" in text:
+        score += 5.0
+    return score
+
+
+def _merge_search_results(*result_groups: list[dict]) -> list[dict]:
+    merged: dict[tuple[str, str], dict] = {}
+    for results in result_groups:
+        for source in results:
+            metadata = source.get("metadata") or {}
+            key = (
+                str(metadata.get("document_id") or metadata.get("document_uuid") or ""),
+                str(_chunk_key(metadata.get("chunk_id")) or metadata.get("chroma_id") or ""),
+            )
+            if key not in merged:
+                copied = dict(source)
+                copied["metadata"] = dict(metadata)
+                copied["retrieval_methods"] = set(source.get("retrieval_methods") or [])
+                merged[key] = copied
+                continue
+
+            target = merged[key]
+            target["retrieval_methods"].update(source.get("retrieval_methods") or [])
+            for score_key in ("keyword_score", "metadata_score", "vector_score", "distance", "score"):
+                if source.get(score_key) is not None:
+                    target[score_key] = source[score_key]
+            if not target.get("text") and source.get("text"):
+                target["text"] = source["text"]
+            target["metadata"].update(metadata)
+
+    for result in merged.values():
+        result["retrieval_methods"] = sorted(result.get("retrieval_methods") or [])
+    return list(merged.values())
+
+
+def _normalize_scores(results: list[dict], score_key: str, normalized_key: str) -> None:
+    scores = [float(result[score_key]) for result in results if result.get(score_key) is not None]
+    if not scores:
+        for result in results:
+            result[normalized_key] = 0.0
+        return
+
+    min_score = min(scores)
+    max_score = max(scores)
+    span = max_score - min_score
+    for result in results:
+        score = result.get(score_key)
+        if score is None:
+            result[normalized_key] = 0.0
+        elif span == 0:
+            result[normalized_key] = 1.0
+        else:
+            result[normalized_key] = (float(score) - min_score) / span
+
+
+def _choose_weights(filters: dict | None) -> dict:
+    filters = filters or {}
+    if filters.get("has_exact_marker"):
+        return {"vector": 0.40, "keyword": 0.45, "metadata": 0.10, "multi": 0.05}
+    if filters.get("company") or filters.get("document_type"):
+        return {"vector": 0.45, "keyword": 0.25, "metadata": 0.25, "multi": 0.05}
+    return {"vector": 0.65, "keyword": 0.20, "metadata": 0.10, "multi": 0.05}
+
+
+def _rerank_results(
+    question: str,
+    merged_results: list[dict],
+    filters: dict | None = None,
+    top_k: int = 5,
+) -> list[dict]:
+    del question
+    _normalize_scores(merged_results, "keyword_score", "keyword_score_norm")
+    _normalize_scores(merged_results, "metadata_score", "metadata_score_norm")
+    _normalize_scores(merged_results, "vector_score", "vector_score_norm")
+    weights = _choose_weights(filters)
+
+    for result in merged_results:
+        methods = result.get("retrieval_methods") or []
+        multi_match_boost = min(max(len(methods) - 1, 0), 2) / 2
+        result["multi_match_boost"] = multi_match_boost
+        result["final_score"] = (
+            weights["vector"] * result.get("vector_score_norm", 0.0)
+            + weights["keyword"] * result.get("keyword_score_norm", 0.0)
+            + weights["metadata"] * result.get("metadata_score_norm", 0.0)
+            + weights["multi"] * multi_match_boost
+        )
+
+    return sorted(merged_results, key=lambda result: result.get("final_score", 0.0), reverse=True)[:top_k]
+
+
+def _hybrid_search_chunks(
+    question: str,
+    user_id: str,
+    document_id: str | None = None,
+    top_k: int = 5,
+) -> list[dict]:
+    filters = _analyze_query(question, user_id)
+    candidate_k = max(top_k * 3, 12)
+
+    chroma_keyword_results = _chroma_keyword_search_chunks(question, document_id, filters, candidate_k)
+    keyword_results = []
+    metadata_results = []
+    semantic_results = []
+
+    if not (filters.get("has_exact_marker") and len(chroma_keyword_results) >= top_k):
+        keyword_results = _keyword_search_chunks(question, user_id, document_id, filters, candidate_k)
+        metadata_results = _metadata_search_chunks(user_id, document_id, filters, candidate_k)
+        try:
+            semantic_results = _semantic_search_chunks(question, document_id, filters, candidate_k)
+        except Exception as error:
+            print(f"Chroma semantic search 실패: {error}")
+
+    merged = _merge_search_results(keyword_results, chroma_keyword_results, metadata_results, semantic_results)
+    return _rerank_results(question, merged, filters=filters, top_k=top_k)
+
+
+def _load_document_chunks(document_id: str, limit: int = 4, question: str | None = None) -> list[dict]:
     chunk_path = CHUNKS_DIR / f"{document_id}_chunked.json"
     if not chunk_path.exists():
         return []
 
     chunks = json.loads(chunk_path.read_text(encoding="utf-8"))
+    if question:
+        terms = _keyword_terms(question)
+        chunks = sorted(
+            chunks,
+            key=lambda chunk: _lexical_score(chunk.get("chunk", ""), terms),
+            reverse=True,
+        )
     fallback_sources = []
     for chunk in chunks[:limit]:
         metadata = chunk.get("metadata") or {}
@@ -195,6 +498,7 @@ def _load_document_chunks(document_id: str, limit: int = 4) -> list[dict]:
                 "metadata": metadata,
                 "distance": None,
                 "score": None,
+                "retrieval_methods": ["json_fallback"],
                 "scope": "selected_document",
             }
         )
@@ -204,16 +508,19 @@ def _load_document_chunks(document_id: str, limit: int = 4) -> list[dict]:
 def _answer_with_sources(
     question: str,
     document_id: str,
+    user_id: str,
     top_k: int = 4,
     include_related_documents: bool = False,
     related_top_k: int = 4,
 ) -> tuple[str, list[dict]]:
     try:
-        selected_chunks = _search_chunks(question, document_id=document_id, top_k=top_k)
+        selected_chunks = _hybrid_search_chunks(question, user_id, document_id=document_id, top_k=top_k)
         search_error = None
     except Exception as error:
-        selected_chunks = _load_document_chunks(document_id, limit=top_k)
+        selected_chunks = _load_document_chunks(document_id, limit=top_k, question=question)
         search_error = error
+    if not selected_chunks:
+        selected_chunks = _load_document_chunks(document_id, limit=top_k, question=question)
 
     chunks = []
     seen = set()
@@ -227,7 +534,7 @@ def _answer_with_sources(
 
     if include_related_documents and search_error is None:
         try:
-            related_sources = _search_chunks(question, document_id=None, top_k=related_top_k)
+            related_sources = _hybrid_search_chunks(question, user_id, document_id=None, top_k=related_top_k)
         except Exception:
             related_sources = []
         for source in related_sources:
@@ -248,7 +555,9 @@ def _answer_with_sources(
             f"범위: {'현재 선택 문서' if source.get('scope') == 'selected_document' else 'DB 내 관련 문서'}, "
             f"문서: {source['metadata'].get('document_id', '-')}, "
             f"페이지: {source['metadata'].get('page_number', '-')}, "
-            f"회사: {source['metadata'].get('company', '-')}]\n"
+            f"회사: {source['metadata'].get('company', '-')}, "
+            f"검색방식: {', '.join(source.get('retrieval_methods') or [])}, "
+            f"점수: final_score={source.get('final_score', '-')}\n"
             f"{source['text']}"
         )
         for source in chunks
@@ -559,6 +868,7 @@ async def ask(payload: dict):
     answer, sources = _answer_with_sources(
         question,
         document_id=document_id,
+        user_id=user_id,
         top_k=4,
         include_related_documents=True,
         related_top_k=4,
@@ -584,7 +894,7 @@ async def summary(payload: dict):
         raise HTTPException(status_code=400, detail="document_id가 필요합니다.")
 
     question = "이 문서의 핵심 내용을 요약해줘."
-    answer, sources = _answer_with_sources(question, document_id=document_id, top_k=5)
+    answer, sources = _answer_with_sources(question, document_id=document_id, user_id=user_id, top_k=5)
     session_id = _store_chat(
         user_id=user_id,
         document_id=document_id,

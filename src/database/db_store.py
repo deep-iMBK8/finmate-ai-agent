@@ -131,6 +131,45 @@ def _source_txt(document: dict) -> str | None:
     return None
 
 
+def ensure_hybrid_search_schema() -> None:
+    conn = get_connection()
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute("SHOW COLUMNS FROM document_chunks LIKE 'chunk_text'")
+            if not cursor.fetchone():
+                cursor.execute("ALTER TABLE document_chunks ADD COLUMN chunk_text LONGTEXT NULL AFTER chroma_id")
+
+            cursor.execute("SHOW COLUMNS FROM document_chunks LIKE 'text_preview'")
+            if cursor.fetchone():
+                cursor.execute("ALTER TABLE document_chunks DROP COLUMN text_preview")
+
+            indexes = _table_indexes(cursor, "document_chunks")
+            if "idx_chunks_page" not in indexes:
+                cursor.execute("CREATE INDEX idx_chunks_page ON document_chunks (page_number)")
+            if "ft_document_chunks_text" not in indexes:
+                try:
+                    cursor.execute("ALTER TABLE document_chunks ADD FULLTEXT INDEX ft_document_chunks_text (chunk_text)")
+                except Exception as error:
+                    print(f"FULLTEXT 인덱스 생성 건너뜀: {error}")
+
+            document_indexes = _table_indexes(cursor, "documents")
+            if "idx_documents_sector" not in document_indexes:
+                cursor.execute("CREATE INDEX idx_documents_sector ON documents (document_sector)")
+            if "idx_documents_date" not in document_indexes:
+                cursor.execute("CREATE INDEX idx_documents_date ON documents (document_date)")
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def _table_indexes(cursor, table_name: str) -> set[str]:
+    cursor.execute(f"SHOW INDEX FROM {_quote_identifier(table_name)}")
+    return {row.get("Key_name") for row in cursor.fetchall()}
+
+
 def upsert_user(cursor, user_id: str) -> None:
     cursor.execute(
         """
@@ -271,24 +310,24 @@ def upsert_chunked_document(
                 metadata = _metadata_from_chunk(chunk)
                 chunk_number = _chunk_number(chunk.get("chunk_id"), index)
                 chroma_id = _chroma_id_for_chunk(chunk, index)
-                text_preview = _safe_str(chunk.get("chunk"))[:500]
+                chunk_text = _safe_str(chunk.get("chunk"))
                 cursor.execute(
                     """
                     INSERT INTO document_chunks (
-                      document_id, chunk_id, page_number, chroma_id, text_preview
+                      document_id, chunk_id, page_number, chroma_id, chunk_text
                     )
                     VALUES (%s, %s, %s, %s, %s)
                     ON DUPLICATE KEY UPDATE
                       page_number = VALUES(page_number),
                       chroma_id = VALUES(chroma_id),
-                      text_preview = VALUES(text_preview)
+                      chunk_text = VALUES(chunk_text)
                     """,
                     (
                         document_id,
                         chunk_number,
                         metadata.get("page_number"),
                         chroma_id,
-                        text_preview,
+                        chunk_text,
                     ),
                 )
         conn.commit()
@@ -614,10 +653,25 @@ def insert_retrieved_sources(message_id: int, sources):
     try:
         with conn.cursor() as cursor:
             for source in sources:
-                metadata = source.get("metadata", {})
+                metadata = dict(source.get("metadata") or {})
+                for key in (
+                    "retrieval_methods",
+                    "keyword_score",
+                    "keyword_score_norm",
+                    "metadata_score",
+                    "metadata_score_norm",
+                    "vector_score",
+                    "vector_score_norm",
+                    "multi_match_boost",
+                    "final_score",
+                    "rerank_score",
+                ):
+                    if source.get(key) is not None:
+                        metadata[key] = source.get(key)
                 source_chunk_id = metadata.get("chunk_id") or None
                 if source_chunk_id:
                     source_chunk_id = _chunk_number(source_chunk_id, 0) or None
+                distance = source.get("distance")
                 cursor.execute(
                     """
                     INSERT INTO retrieved_sources (
@@ -630,7 +684,7 @@ def insert_retrieved_sources(message_id: int, sources):
                         metadata.get("document_id") or metadata.get("document_uuid"),
                         source_chunk_id,
                         metadata.get("page_number") or None,
-                        source.get("distance") or source.get("score"),
+                        distance if distance is not None else source.get("score"),
                         _json_dumps(metadata),
                     ),
                 )
@@ -674,6 +728,184 @@ def list_documents(user_id: str | None = None, limit: int = 50):
             return cursor.fetchall()
     finally:
         conn.close()
+
+
+def list_known_companies(user_id: str) -> list[str]:
+    conn = get_connection()
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT DISTINCT company
+                FROM documents
+                WHERE user_id = %s
+                  AND company IS NOT NULL
+                  AND company <> ''
+                """,
+                (user_id,),
+            )
+            return [row["company"] for row in cursor.fetchall() if row.get("company")]
+    finally:
+        conn.close()
+
+
+def keyword_search_chunks(
+    question: str,
+    user_id: str,
+    document_id: str | None = None,
+    filters: dict | None = None,
+    top_k: int = 12,
+) -> list[dict]:
+    filters = filters or {}
+    keyword_query = _safe_str(filters.get("keyword_query") or question)
+    if not keyword_query:
+        return []
+
+    conn = get_connection()
+    try:
+        with conn.cursor() as cursor:
+            base_where, base_params = _chunk_search_filters(user_id, document_id, filters)
+            try:
+                cursor.execute(
+                    f"""
+                    SELECT
+                      dc.document_id,
+                      dc.chunk_id,
+                      dc.page_number,
+                      dc.chroma_id,
+                      dc.chunk_text,
+                      d.company,
+                      d.document_type,
+                      d.document_sector,
+                      d.document_date,
+                      MATCH(dc.chunk_text) AGAINST (%s IN NATURAL LANGUAGE MODE) AS keyword_score
+                    FROM document_chunks dc
+                    JOIN documents d ON d.document_id = dc.document_id
+                    WHERE {base_where}
+                      AND MATCH(dc.chunk_text) AGAINST (%s IN NATURAL LANGUAGE MODE)
+                    ORDER BY keyword_score DESC
+                    LIMIT %s
+                    """,
+                    [keyword_query, *base_params, keyword_query, top_k],
+                )
+                rows = cursor.fetchall()
+                if rows:
+                    return [_row_to_search_result(row, "keyword") for row in rows]
+            except Exception:
+                pass
+
+            like_terms = _keyword_like_terms(keyword_query)
+            if not like_terms:
+                return []
+            like_where = " OR ".join(["dc.chunk_text LIKE %s" for _ in like_terms])
+            cursor.execute(
+                f"""
+                SELECT
+                  dc.document_id,
+                  dc.chunk_id,
+                  dc.page_number,
+                  dc.chroma_id,
+                  dc.chunk_text,
+                  d.company,
+                  d.document_type,
+                  d.document_sector,
+                  d.document_date,
+                  1.0 AS keyword_score
+                FROM document_chunks dc
+                JOIN documents d ON d.document_id = dc.document_id
+                WHERE {base_where}
+                  AND ({like_where})
+                ORDER BY d.updated_at DESC, dc.page_number ASC
+                LIMIT %s
+                """,
+                [*base_params, *[f"%{term}%" for term in like_terms], top_k],
+            )
+            return [_row_to_search_result(row, "keyword") for row in cursor.fetchall()]
+    finally:
+        conn.close()
+
+
+def metadata_search_chunks(
+    user_id: str,
+    document_id: str | None = None,
+    filters: dict | None = None,
+    top_k: int = 12,
+) -> list[dict]:
+    filters = filters or {}
+    if not document_id and not any(filters.get(key) for key in ("company", "sector", "document_type")):
+        return []
+
+    conn = get_connection()
+    try:
+        with conn.cursor() as cursor:
+            where_sql, params = _chunk_search_filters(user_id, document_id, filters)
+            cursor.execute(
+                f"""
+                SELECT
+                  dc.document_id,
+                  dc.chunk_id,
+                  dc.page_number,
+                  dc.chroma_id,
+                  dc.chunk_text,
+                  d.company,
+                  d.document_type,
+                  d.document_sector,
+                  d.document_date,
+                  1.0 AS metadata_score
+                FROM document_chunks dc
+                JOIN documents d ON d.document_id = dc.document_id
+                WHERE {where_sql}
+                ORDER BY d.updated_at DESC, dc.page_number ASC
+                LIMIT %s
+                """,
+                [*params, top_k],
+            )
+            return [_row_to_search_result(row, "metadata") for row in cursor.fetchall()]
+    finally:
+        conn.close()
+
+
+def _chunk_search_filters(user_id: str, document_id: str | None, filters: dict) -> tuple[str, list[Any]]:
+    where = ["d.user_id = %s", "dc.chunk_text IS NOT NULL", "dc.chunk_text <> ''"]
+    params: list[Any] = [user_id]
+    if document_id:
+        where.append("dc.document_id = %s")
+        params.append(document_id)
+    if filters.get("company"):
+        where.append("d.company LIKE %s")
+        params.append(f"%{filters['company']}%")
+    if filters.get("sector"):
+        where.append("d.document_sector = %s")
+        params.append(filters["sector"])
+    if filters.get("document_type"):
+        where.append("d.document_type LIKE %s")
+        params.append(f"%{filters['document_type']}%")
+    return " AND ".join(where), params
+
+
+def _keyword_like_terms(keyword_query: str) -> list[str]:
+    terms = [term.strip() for term in keyword_query.split() if len(term.strip()) >= 2]
+    return terms[:8] or ([keyword_query] if keyword_query else [])
+
+
+def _row_to_search_result(row: dict, method: str) -> dict:
+    score_key = f"{method}_score"
+    return {
+        "text": row.get("chunk_text") or "",
+        "metadata": {
+            "document_id": row.get("document_id"),
+            "document_uuid": row.get("document_id"),
+            "chunk_id": row.get("chunk_id"),
+            "page_number": row.get("page_number"),
+            "company": row.get("company"),
+            "document_type": row.get("document_type"),
+            "document_date": row.get("document_date"),
+            "sector": row.get("document_sector"),
+            "chroma_id": row.get("chroma_id"),
+        },
+        score_key: float(row.get(score_key) or 0.0),
+        "retrieval_methods": [method],
+    }
 
 
 def delete_document(document_id: str):
