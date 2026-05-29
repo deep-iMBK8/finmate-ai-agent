@@ -1,6 +1,6 @@
 # [iM DiGital Banker 8기 DL 프로젝트] FinMate | 당신 곁의 금융 메이트
 
-복잡한 금융 문서를 딥러닝 기반으로 검색·분석해주는 금융 문서 인텔리전스 에이전트 챗봇입니다.  
+RAG sementic search 기반으로 복잡한 금융 문서를 설명·분석해주는 금융 문서 인텔리전스 에이전트 챗봇입니다.  
 AI-powered financial document intelligence agent for managing, searching, and understanding complex finance documents.
 
 ## 시스템 아키텍처 및 기술 스택
